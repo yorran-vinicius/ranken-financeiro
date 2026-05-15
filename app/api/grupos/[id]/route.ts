@@ -5,7 +5,9 @@ import {
   encerrarGrupo,
   cancelarTodosGrupo,
   reajustarGrupo,
+  lerCriadorGrupo,
 } from "@/lib/db";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const sessao = await getSession();
+  if (sessao.perfil !== "master") {
+    const criadorId = await lerCriadorGrupo(params.id);
+    if (criadorId !== sessao.userId) {
+      return NextResponse.json({ erro: "Sem permissão para gerenciar este grupo" }, { status: 403 });
+    }
+  }
+
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ erro: "JSON inválido" }, { status: 400 }); }

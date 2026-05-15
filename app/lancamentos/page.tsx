@@ -6,6 +6,7 @@ import FiltroMes from "@/components/FiltroMes";
 import GerenciarGrupo from "@/components/GerenciarGrupo";
 import ListaLancamentos from "@/components/ListaLancamentos";
 import NovoLancamento from "@/components/NovoLancamento";
+import { useAuth } from "@/components/AuthProvider";
 import type { Lancamento } from "@/lib/db";
 import { mesAtualISO, rotuloMesAno } from "@/lib/format";
 import type { TipoLancamento } from "@/lib/categorias";
@@ -13,6 +14,9 @@ import type { TipoLancamento } from "@/lib/categorias";
 type FiltroTipo = TipoLancamento | "todos";
 
 export default function LancamentosPage() {
+  const usuario = useAuth();
+  const isMaster = usuario?.perfil === "master";
+
   const [mes, setMes]             = useState(mesAtualISO());
   const [tipo, setTipo]           = useState<FiltroTipo>("todos");
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
@@ -60,7 +64,6 @@ export default function LancamentosPage() {
 
   return (
     <div className="space-y-6">
-      {/* Modal de gerenciamento */}
       {grupoAberto && (
         <GerenciarGrupo
           grupoId={grupoAberto}
@@ -126,6 +129,7 @@ export default function LancamentosPage() {
             onRemover={remover}
             onGerenciar={(gid) => setGrupoAberto(gid)}
             carregando={carregando}
+            mostrarCriador={isMaster}
           />
         </div>
       </div>

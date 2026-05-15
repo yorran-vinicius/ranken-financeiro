@@ -9,24 +9,33 @@ import {
 } from "@/lib/db";
 import { validarCategoria, type TipoLancamento } from "@/lib/categorias";
 import type { Frequencia } from "@/lib/recorrencia";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const FREQUENCIAS_VALIDAS: Frequencia[] = ["mensal", "semanal", "anual"];
 
 export async function GET(req: NextRequest) {
+  const sessao = await getSession();
   const { searchParams } = new URL(req.url);
-  const mes  = searchParams.get("mes");
-  const tipo = (searchParams.get("tipo") ?? "todos") as TipoLancamento | "todos";
+  const mes   = searchParams.get("mes");
+  const tipo  = (searchParams.get("tipo") ?? "todos") as TipoLancamento | "todos";
+  const userId = searchParams.get("usuario") ?? undefined;
 
-  let lancamentos = await lerLancamentos();
-  if (mes)  lancamentos = filtrarPorMes(lancamentos, mes);
+  // Editors only see their own lancamentos; masters can filter or see all
+  const filtroUsuario = sessao.perfil === "master" ? userId : sessao.userId;
+
+  let lancamentos = await lerLancamentos(filtroUsuario);
+  if (mes) lancamentos = filtrarPorMes(lancamentos, mes);
   lancamentos = filtrarPorTipo(lancamentos, tipo);
 
   return NextResponse.json(lancamentos);
 }
 
 export async function POST(req: NextRequest) {
+  const sessao = await getSession();
+  const criadoPorId = sessao.userId ?? null;
+
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ erro: "JSON inválido" }, { status: 400 }); }
@@ -37,8 +46,6 @@ export async function POST(req: NextRequest) {
 
   const b = body as Record<string, unknown>;
   const tipoLancamento = (b.tipoLancamento as string) ?? "avulso";
-
-  // ── Campos comuns ──────────────────────────────────────────────────────────
   const { descricao, tipo, categoria } = b;
 
   if (typeof descricao !== "string" || descricao.trim().length === 0)
@@ -56,13 +63,10 @@ export async function POST(req: NextRequest) {
     if (typeof b.data !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.data))
       return NextResponse.json({ erro: "Data inválida" }, { status: 400 });
 
-    const novo = await adicionarAvulso({
-      descricao: descricao.trim(),
-      valor: Math.round(valorNum * 100) / 100,
-      tipo,
-      categoria,
-      data: b.data,
-    });
+    const novo = await adicionarAvulso(
+      { descricao: descricao.trim(), valor: Math.round(valorNum * 100) / 100, tipo, categoria, data: b.data as string },
+      criadoPorId,
+    );
     return NextResponse.json(novo, { status: 201 });
   }
 
@@ -78,15 +82,17 @@ export async function POST(req: NextRequest) {
     if (b.dataFim != null && (typeof b.dataFim !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.dataFim)))
       return NextResponse.json({ erro: "Data de término inválida" }, { status: 400 });
 
-    const grupo = await adicionarRecorrente({
-      descricao: descricao.trim(),
-      valor: Math.round(valorNum * 100) / 100,
-      tipo,
-      categoria,
-      frequencia: b.frequencia as Frequencia,
-      dataInicio: b.dataInicio,
-      dataFim: (b.dataFim as string) ?? null,
-    });
+    const grupo = await adicionarRecorrente(
+      {
+        descricao: descricao.trim(),
+        valor: Math.round(valorNum * 100) / 100,
+        tipo, categoria,
+        frequencia: b.frequencia as Frequencia,
+        dataInicio: b.dataInicio,
+        dataFim: (b.dataFim as string) ?? null,
+      },
+      criadoPorId,
+    );
     return NextResponse.json(grupo, { status: 201 });
   }
 
@@ -114,15 +120,10 @@ export async function POST(req: NextRequest) {
     if (typeof b.dataPrimeira !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.dataPrimeira))
       return NextResponse.json({ erro: "Data da primeira parcela inválida" }, { status: 400 });
 
-    const grupo = await adicionarParcelado({
-      descricao: descricao.trim(),
-      valorParcela,
-      valorTotal,
-      tipo,
-      categoria,
-      totalParcelas,
-      dataPrimeira: b.dataPrimeira,
-    });
+    const grupo = await adicionarParcelado(
+      { descricao: descricao.trim(), valorParcela, valorTotal, tipo, categoria, totalParcelas, dataPrimeira: b.dataPrimeira },
+      criadoPorId,
+    );
     return NextResponse.json(grupo, { status: 201 });
   }
 

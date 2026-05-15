@@ -8,6 +8,7 @@ interface Props {
   onRemover: (id: string) => void;
   onGerenciar?: (grupoId: string) => void;
   carregando?: boolean;
+  mostrarCriador?: boolean;
 }
 
 function BadgeTipo({ l }: { l: Lancamento }) {
@@ -34,7 +35,7 @@ function BadgeTipo({ l }: { l: Lancamento }) {
   return null;
 }
 
-export default function ListaLancamentos({ lancamentos, onRemover, onGerenciar, carregando }: Props) {
+export default function ListaLancamentos({ lancamentos, onRemover, onGerenciar, carregando, mostrarCriador }: Props) {
   if (carregando) {
     return (
       <div className="bg-white border border-marca-borda rounded-2xl p-8 text-center text-marca-texto-suave">
@@ -51,12 +52,17 @@ export default function ListaLancamentos({ lancamentos, onRemover, onGerenciar, 
     );
   }
 
+  const colsDesktop = mostrarCriador
+    ? "md:grid-cols-[110px_1fr_140px_110px_130px_88px]"
+    : "md:grid-cols-[110px_1fr_160px_140px_88px]";
+
   return (
     <div className="bg-white border border-marca-borda rounded-2xl overflow-hidden">
-      <div className="hidden md:grid md:grid-cols-[110px_1fr_160px_140px_88px] gap-3 px-5 py-3 bg-marca-fundo text-xs font-medium uppercase tracking-wide text-marca-texto-suave">
+      <div className={`hidden md:grid gap-3 px-5 py-3 bg-marca-fundo text-xs font-medium uppercase tracking-wide text-marca-texto-suave ${colsDesktop}`}>
         <span>Data</span>
         <span>Descrição</span>
         <span>Categoria</span>
+        {mostrarCriador && <span>Por</span>}
         <span className="text-right">Valor</span>
         <span />
       </div>
@@ -64,12 +70,12 @@ export default function ListaLancamentos({ lancamentos, onRemover, onGerenciar, 
       <ul className="divide-y divide-marca-borda">
         {lancamentos.map((l) => {
           const isReceita = l.tipo === "receita";
-          const isGrupo = l.tipoLancamento !== "avulso";
+          const isGrupo   = l.tipoLancamento !== "avulso";
 
           return (
             <li
               key={l.id}
-              className="px-5 py-4 grid grid-cols-[1fr_auto] md:grid-cols-[110px_1fr_160px_140px_88px] gap-3 items-center"
+              className={`px-5 py-4 grid grid-cols-[1fr_auto] gap-3 items-center ${colsDesktop} md:grid`}
             >
               <div className="md:contents">
                 {/* Data */}
@@ -80,9 +86,7 @@ export default function ListaLancamentos({ lancamentos, onRemover, onGerenciar, 
                 {/* Descrição + badges mobile */}
                 <div className="text-sm text-marca-texto font-medium md:font-normal">
                   <span>{l.descricao}</span>
-                  <span className="ml-2">
-                    <BadgeTipo l={l} />
-                  </span>
+                  <span className="ml-2"><BadgeTipo l={l} /></span>
                   <span
                     className={`md:hidden ml-1 inline-block text-[10px] uppercase font-semibold tracking-wide px-1.5 py-0.5 rounded ${
                       isReceita ? "bg-receita-soft text-receita" : "bg-despesa-soft text-despesa"
@@ -92,6 +96,7 @@ export default function ListaLancamentos({ lancamentos, onRemover, onGerenciar, 
                   </span>
                   <span className="block md:hidden text-xs text-marca-texto-suave mt-0.5">
                     {l.categoria}
+                    {mostrarCriador && l.criadoPorNome && ` · ${l.criadoPorNome}`}
                   </span>
                 </div>
 
@@ -100,6 +105,13 @@ export default function ListaLancamentos({ lancamentos, onRemover, onGerenciar, 
                   <span className={`mr-2 inline-block w-2 h-2 rounded-full ${isReceita ? "bg-receita" : "bg-despesa"}`} />
                   {l.categoria}
                 </span>
+
+                {/* Criador (master only) */}
+                {mostrarCriador && (
+                  <span className="hidden md:inline text-sm text-marca-texto-suave">
+                    {l.criadoPorNome ?? "—"}
+                  </span>
+                )}
 
                 {/* Valor */}
                 <span className={`text-sm font-semibold text-right ${isReceita ? "text-receita" : "text-despesa"}`}>

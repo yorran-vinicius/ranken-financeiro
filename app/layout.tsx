@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
+import { AuthProvider } from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
   title: "RANKEN Financeiro",
@@ -15,13 +16,15 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className="min-h-screen font-sans">
-        <NavBar />
-        <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-          {children}
-        </main>
-        <footer className="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-xs text-marca-texto-suave">
-          RANKEN Financeiro · MVP
-        </footer>
+        <AuthProvider>
+          <NavBar />
+          <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+            {children}
+          </main>
+          <footer className="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-xs text-marca-texto-suave">
+            RANKEN Financeiro · MVP
+          </footer>
+        </AuthProvider>
       </body>
     </html>
   );
