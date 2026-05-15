@@ -221,10 +221,8 @@ export async function garantirTabelas() {
   ]);
 
   // Seed: usuários iniciais
-  const [{ c: cUsers }] = await sql`
-    SELECT COUNT(*) as c FROM usuarios WHERE login IN ('yorran', 'thales', 'laura')
-  `;
-  if (Number(cUsers) < 3) {
+  const existingUsers = await sql`SELECT login FROM usuarios WHERE login IN ('yorran', 'thales', 'laura')`;
+  if (existingUsers.length < 3) {
     const { hash } = await import("bcryptjs");
     const senhaHash = await hash("ranken2026", 10);
     await Promise.allSettled([
@@ -241,8 +239,8 @@ export async function garantirTabelas() {
   }
 
   // Seed: categorias padrão
-  const [{ c: cCats }] = await sql`SELECT COUNT(*) as c FROM categorias`;
-  if (Number(cCats) === 0) {
+  const existingCats = await sql`SELECT id FROM categorias LIMIT 1`;
+  if (existingCats.length === 0) {
     const inserts = [
       ...CATS_RECEITA.map((nome, i) =>
         sql`INSERT INTO categorias (id, tipo, nome, ativo, ordem) VALUES (${randomUUID()}, 'receita', ${nome}, TRUE, ${i}) ON CONFLICT (tipo, nome) DO NOTHING`

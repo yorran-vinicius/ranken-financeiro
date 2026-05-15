@@ -19,10 +19,16 @@ const sql = neon(DATABASE_URL);
 const CATS_RECEITA = ["Mensalidades", "Patrocínios", "Loja", "Confraternização", "Outros"];
 const CATS_DESPESA = ["Time", "Marketing", "Tecnologia", "Operacional", "Confraternização", "Outros"];
 
+const USUARIOS = [
+  { login: "yorran", nome: "Yorran", perfil: "master"  },
+  { login: "thales", nome: "Thales", perfil: "editor"  },
+  { login: "laura",  nome: "Laura",  perfil: "editor"  },
+];
+
 async function migrar() {
   console.log("🔌  Conectando ao banco Neon...");
 
-  // ── Tabela: usuarios ─────────────────────────────────────────────────────────
+  // ── Tabela: usuarios ──────────────────────────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS usuarios (
       id                   TEXT        PRIMARY KEY,
@@ -74,19 +80,19 @@ async function migrar() {
       criado_em        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
     )
   `;
-  // Migrações para tabelas pré-existentes (colunas adicionadas ao longo do tempo)
+  // Colunas adicionadas ao longo do tempo (sem erro se já existirem)
   const alteracoes = [
-    `ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS grupo_id TEXT`,
-    `ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS tipo_lancamento TEXT NOT NULL DEFAULT 'avulso'`,
-    `ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS parcela_num INT`,
-    `ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS parcela_total INT`,
-    `ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS cancelado BOOLEAN NOT NULL DEFAULT FALSE`,
-    `ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS criado_por_id TEXT`,
+    "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS grupo_id TEXT",
+    "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS tipo_lancamento TEXT NOT NULL DEFAULT 'avulso'",
+    "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS parcela_num INT",
+    "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS parcela_total INT",
+    "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS cancelado BOOLEAN NOT NULL DEFAULT FALSE",
+    "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS criado_por_id TEXT",
   ];
   for (const q of alteracoes) {
-    await sql(q, []).catch(() => {}); // ignora se coluna já existe
+    try { await sql.unsafe(q); } catch { /* coluna já existe */ }
   }
-  console.log("✅  Tabela 'lancamentos' OK (+ migrações de colunas)");
+  console.log("✅  Tabela 'lancamentos' OK");
 
   // ── Tabela: categorias ────────────────────────────────────────────────────────
   await sql`
@@ -111,57 +117,52 @@ async function migrar() {
   `;
   console.log("✅  Tabela 'configuracoes' OK");
 
-  // ── Seed: usuários iniciais ───────────────────────────────────────────────────
-  const [{ c: cUsers }] = await sql`
-    SELECT COUNT(*) as c FROM usuarios WHERE login IN ('yorran','thales','laura')
-  `;
-  if (Number(cUsers) < 3) {
-    console.log("⏳  Criando usuários iniciais (bcrypt pode demorar alguns segundos)...");
-    const senhaHash = await hash("ranken2026", 10);
-    await Promise.allSettled([
-      sql`INSERT INTO usuarios (id, login, nome, perfil, senha_hash, ativo, deve_atualizar_senha)
-          VALUES (${randomUUID()},'yorran','Yorran','master',${senhaHash},TRUE,TRUE)
-          ON CONFLICT (login) DO NOTHING`,
-      sql`INSERT INTO usuarios (id, login, nome, perfil, senha_hash, ativo, deve_atualizar_senha)
-          VALUES (${randomUUID()},'thales','Thales','editor',${senhaHash},TRUE,TRUE)
-          ON CONFLICT (login) DO NOTHING`,
-      sql`INSERT INTO usuarios (id, login, nome, perfil, senha_hash, ativo, deve_atualizar_senha)
-          VALUES (${randomUUID()},'laura','Laura','editor',${senhaHash},TRUE,TRUE)
-          ON CONFLICT (login) DO NOTHING`,
-    ]);
-    console.log("✅  Usuários iniciais criados (yorran / thales / laura)");
-  } else {
-    console.log("✅  Usuários iniciais já existem");
+  // ── Usuários iniciais ─────────────────────────────────────────────────────────
+  console.log("⏳  Gerando hash de senha (bcrypt)...");
+  const senhaHash = await hash("ranken2026", 10);
+
+  for (const u of USUARIOS) {
+    await sql`
+      INSERT INTO usuarios (id, login, nome, perfil, senha_hash, ativo, deve_atualizar_senha)
+      VALUES (${randomUUID()}, ${u.login}, ${u.nome}, ${u.perfil}, ${senhaHash}, TRUE, TRUE)
+      ON CONFLICT (login) DO UPDATE SET
+        nome                 = EXCLUDED.nome,
+        perfil               = EXCLUDED.perfil,
+        senha_hash           = EXCLUDED.senha_hash,
+        deve_atualizar_senha = TRUE
+    `;
+    console.log(`✅  Usuário '${u.login}' (${u.perfil}) OK`);
   }
 
-  // ── Seed: categorias padrão ───────────────────────────────────────────────────
-  const [{ c: cCats }] = await sql`SELECT COUNT(*) as c FROM categorias`;
-  if (Number(cCats) === 0) {
-    const inserts = [
-      ...CATS_RECEITA.map((nome, i) =>
-        sql`INSERT INTO categorias (id,tipo,nome,ativo,ordem)
-            VALUES (${randomUUID()},'receita',${nome},TRUE,${i})
-            ON CONFLICT (tipo,nome) DO NOTHING`
-      ),
-      ...CATS_DESPESA.map((nome, i) =>
-        sql`INSERT INTO categorias (id,tipo,nome,ativo,ordem)
-            VALUES (${randomUUID()},'despesa',${nome},TRUE,${i})
-            ON CONFLICT (tipo,nome) DO NOTHING`
-      ),
-    ];
-    await Promise.allSettled(inserts);
-    console.log(`✅  ${CATS_RECEITA.length + CATS_DESPESA.length} categorias padrão criadas`);
-  } else {
-    console.log("✅  Categorias já existem");
+  // ── Categorias padrão ─────────────────────────────────────────────────────────
+  for (const [i, nome] of CATS_RECEITA.entries()) {
+    await sql`
+      INSERT INTO categorias (id, tipo, nome, ativo, ordem)
+      VALUES (${randomUUID()}, 'receita', ${nome}, TRUE, ${i})
+      ON CONFLICT (tipo, nome) DO NOTHING
+    `;
   }
+  for (const [i, nome] of CATS_DESPESA.entries()) {
+    await sql`
+      INSERT INTO categorias (id, tipo, nome, ativo, ordem)
+      VALUES (${randomUUID()}, 'despesa', ${nome}, TRUE, ${i})
+      ON CONFLICT (tipo, nome) DO NOTHING
+    `;
+  }
+  console.log(`✅  ${CATS_RECEITA.length + CATS_DESPESA.length} categorias padrão OK`);
 
-  // ── Seed: configurações padrão ────────────────────────────────────────────────
-  await Promise.allSettled([
-    sql`INSERT INTO configuracoes (chave,valor) VALUES ('nome_app','RANKEN Financeiro') ON CONFLICT (chave) DO NOTHING`,
-    sql`INSERT INTO configuracoes (chave,valor) VALUES ('moeda','R$') ON CONFLICT (chave) DO NOTHING`,
-    sql`INSERT INTO configuracoes (chave,valor) VALUES ('formato_data','dd/mm/aaaa') ON CONFLICT (chave) DO NOTHING`,
-  ]);
+  // ── Configurações padrão ──────────────────────────────────────────────────────
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('nome_app', 'RANKEN Financeiro') ON CONFLICT (chave) DO NOTHING`;
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('moeda', 'R$') ON CONFLICT (chave) DO NOTHING`;
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('formato_data', 'dd/mm/aaaa') ON CONFLICT (chave) DO NOTHING`;
   console.log("✅  Configurações padrão OK");
+
+  // ── Verificação final ─────────────────────────────────────────────────────────
+  const rows = await sql`SELECT login, nome, perfil, ativo FROM usuarios ORDER BY criado_em ASC`;
+  console.log("\n📋  Usuários no banco:");
+  for (const u of rows) {
+    console.log(`   • ${u.login} | ${u.nome} | ${u.perfil} | ativo=${u.ativo}`);
+  }
 
   console.log("\n🎉  Migração concluída com sucesso!");
 }
