@@ -56,6 +56,16 @@ export interface UsuarioComSenha extends Usuario {
   senhaHash: string;
 }
 
+export interface CategoriaDB {
+  id: string;
+  tipo: "receita" | "despesa";
+  nome: string;
+  ativo: boolean;
+  ordem: number;
+}
+
+export type Configuracoes = Record<string, string>;
+
 function db() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL não configurado");
@@ -103,6 +113,16 @@ function toGrupo(row: Record<string, unknown>): GrupoLancamento {
   };
 }
 
+function toCat(row: Record<string, unknown>): CategoriaDB {
+  return {
+    id:     row.id as string,
+    tipo:   row.tipo as "receita" | "despesa",
+    nome:   row.nome as string,
+    ativo:  Boolean(row.ativo),
+    ordem:  Number(row.ordem),
+  };
+}
+
 function toUsuario(row: Record<string, unknown>): Usuario {
   return {
     id:                   row.id as string,
@@ -117,19 +137,22 @@ function toUsuario(row: Record<string, unknown>): Usuario {
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
+const CATS_RECEITA = ["Mensalidades", "Patrocínios", "Loja", "Confraternização", "Outros"];
+const CATS_DESPESA = ["Time", "Marketing", "Tecnologia", "Operacional", "Confraternização", "Outros"];
+
 export async function garantirTabelas() {
   const sql = db();
 
   await sql`
     CREATE TABLE IF NOT EXISTS usuarios (
-      id                   TEXT          PRIMARY KEY,
-      login                TEXT          NOT NULL UNIQUE,
-      nome                 TEXT          NOT NULL,
-      perfil               TEXT          NOT NULL DEFAULT 'editor',
-      senha_hash           TEXT          NOT NULL,
-      ativo                BOOLEAN       NOT NULL DEFAULT TRUE,
-      deve_atualizar_senha BOOLEAN       NOT NULL DEFAULT FALSE,
-      criado_em            TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+      id                   TEXT        PRIMARY KEY,
+      login                TEXT        NOT NULL UNIQUE,
+      nome                 TEXT        NOT NULL,
+      perfil               TEXT        NOT NULL DEFAULT 'editor',
+      senha_hash           TEXT        NOT NULL,
+      ativo                BOOLEAN     NOT NULL DEFAULT TRUE,
+      deve_atualizar_senha BOOLEAN     NOT NULL DEFAULT FALSE,
+      criado_em            TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
 
@@ -168,28 +191,75 @@ export async function garantirTabelas() {
     )
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS categorias (
+      id        TEXT        PRIMARY KEY,
+      tipo      TEXT        NOT NULL,
+      nome      TEXT        NOT NULL,
+      ativo     BOOLEAN     NOT NULL DEFAULT TRUE,
+      ordem     INT         NOT NULL DEFAULT 0,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(tipo, nome)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS configuracoes (
+      chave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL
+    )
+  `;
+
   // Migrações para tabelas pré-existentes
-  const migrações = [
+  await Promise.allSettled([
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS grupo_id TEXT`,
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS tipo_lancamento TEXT NOT NULL DEFAULT 'avulso'`,
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS parcela_num INT`,
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS parcela_total INT`,
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS cancelado BOOLEAN NOT NULL DEFAULT FALSE`,
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS criado_por_id TEXT`,
-  ];
-  await Promise.allSettled(migrações);
+  ]);
 
-  // Seed: cria usuário master inicial se não existir nenhum usuário
-  const existentes = await sql`SELECT COUNT(*) as c FROM usuarios`;
-  if (Number(existentes[0].c) === 0) {
+  // Seed: usuários iniciais
+  const [{ c: cUsers }] = await sql`
+    SELECT COUNT(*) as c FROM usuarios WHERE login IN ('yorran', 'thales', 'laura')
+  `;
+  if (Number(cUsers) < 3) {
     const { hash } = await import("bcryptjs");
     const senhaHash = await hash("ranken2026", 10);
-    await sql`
-      INSERT INTO usuarios (id, login, nome, perfil, senha_hash, ativo, deve_atualizar_senha)
-      VALUES (${randomUUID()}, 'yorran', 'Yorran', 'master', ${senhaHash}, TRUE, TRUE)
-      ON CONFLICT (login) DO NOTHING
-    `;
+    await Promise.allSettled([
+      sql`INSERT INTO usuarios (id, login, nome, perfil, senha_hash, ativo, deve_atualizar_senha)
+          VALUES (${randomUUID()}, 'yorran', 'Yorran', 'master', ${senhaHash}, TRUE, TRUE)
+          ON CONFLICT (login) DO NOTHING`,
+      sql`INSERT INTO usuarios (id, login, nome, perfil, senha_hash, ativo, deve_atualizar_senha)
+          VALUES (${randomUUID()}, 'thales', 'Thales', 'editor', ${senhaHash}, TRUE, TRUE)
+          ON CONFLICT (login) DO NOTHING`,
+      sql`INSERT INTO usuarios (id, login, nome, perfil, senha_hash, ativo, deve_atualizar_senha)
+          VALUES (${randomUUID()}, 'laura', 'Laura', 'editor', ${senhaHash}, TRUE, TRUE)
+          ON CONFLICT (login) DO NOTHING`,
+    ]);
   }
+
+  // Seed: categorias padrão
+  const [{ c: cCats }] = await sql`SELECT COUNT(*) as c FROM categorias`;
+  if (Number(cCats) === 0) {
+    const inserts = [
+      ...CATS_RECEITA.map((nome, i) =>
+        sql`INSERT INTO categorias (id, tipo, nome, ativo, ordem) VALUES (${randomUUID()}, 'receita', ${nome}, TRUE, ${i}) ON CONFLICT (tipo, nome) DO NOTHING`
+      ),
+      ...CATS_DESPESA.map((nome, i) =>
+        sql`INSERT INTO categorias (id, tipo, nome, ativo, ordem) VALUES (${randomUUID()}, 'despesa', ${nome}, TRUE, ${i}) ON CONFLICT (tipo, nome) DO NOTHING`
+      ),
+    ];
+    await Promise.allSettled(inserts);
+  }
+
+  // Seed: configurações padrão
+  await Promise.allSettled([
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('nome_app', 'RANKEN Financeiro') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('moeda', 'R$') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('formato_data', 'dd/mm/aaaa') ON CONFLICT (chave) DO NOTHING`,
+  ]);
 }
 
 // ─── Leitura de lançamentos ───────────────────────────────────────────────────
@@ -445,10 +515,10 @@ export async function criarUsuario(
 
 export async function atualizarUsuario(
   id: string,
-  dados: Partial<{ nome: string; perfil: "master" | "editor"; ativo: boolean; deveAtualizarSenha: boolean; senhaHash: string }>
+  dados: Partial<{ login: string; nome: string; perfil: "master" | "editor"; ativo: boolean; deveAtualizarSenha: boolean; senhaHash: string }>
 ): Promise<Usuario | null> {
   const sql = db();
-  // COALESCE keeps the current column value when the passed value is NULL
+  const login              = dados.login              ?? null;
   const nome               = dados.nome               ?? null;
   const perfil             = dados.perfil             ?? null;
   const ativo              = dados.ativo              ?? null;
@@ -457,9 +527,10 @@ export async function atualizarUsuario(
 
   const rows = await sql`
     UPDATE usuarios SET
-      nome               = COALESCE(${nome}::TEXT,    nome),
-      perfil             = COALESCE(${perfil}::TEXT,  perfil),
-      ativo              = COALESCE(${ativo}::BOOLEAN, ativo),
+      login              = COALESCE(${login}::TEXT,    login),
+      nome               = COALESCE(${nome}::TEXT,     nome),
+      perfil             = COALESCE(${perfil}::TEXT,   perfil),
+      ativo              = COALESCE(${ativo}::BOOLEAN,  ativo),
       deve_atualizar_senha = COALESCE(${deveAtualizarSenha}::BOOLEAN, deve_atualizar_senha),
       senha_hash         = COALESCE(${senhaHash}::TEXT, senha_hash)
     WHERE id = ${id}
@@ -467,4 +538,62 @@ export async function atualizarUsuario(
   `;
   if (rows.length === 0) return null;
   return toUsuario(rows[0] as Record<string, unknown>);
+}
+
+// ─── Categorias ───────────────────────────────────────────────────────────────
+
+export async function listarCategorias(tipo?: "receita" | "despesa"): Promise<CategoriaDB[]> {
+  await garantirTabelas();
+  const sql = db();
+  const rows = tipo
+    ? await sql`SELECT * FROM categorias WHERE tipo = ${tipo} ORDER BY ordem ASC, nome ASC`
+    : await sql`SELECT * FROM categorias ORDER BY tipo ASC, ordem ASC, nome ASC`;
+  return rows.map((r) => toCat(r as Record<string, unknown>));
+}
+
+export async function adicionarCategoria(tipo: "receita" | "despesa", nome: string): Promise<CategoriaDB> {
+  const sql = db();
+  const id = randomUUID();
+  const [row] = await sql`
+    INSERT INTO categorias (id, tipo, nome, ativo, ordem)
+    VALUES (${id}, ${tipo}, ${nome.trim()}, TRUE,
+      (SELECT COALESCE(MAX(ordem), -1) + 1 FROM categorias WHERE tipo = ${tipo}))
+    RETURNING *
+  `;
+  return toCat(row as Record<string, unknown>);
+}
+
+export async function atualizarCategoria(
+  id: string,
+  dados: Partial<{ nome: string; ativo: boolean }>
+): Promise<CategoriaDB | null> {
+  const sql = db();
+  const nome  = dados.nome  ?? null;
+  const ativo = dados.ativo ?? null;
+  const rows = await sql`
+    UPDATE categorias SET
+      nome  = COALESCE(${nome}::TEXT,    nome),
+      ativo = COALESCE(${ativo}::BOOLEAN, ativo)
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  if (rows.length === 0) return null;
+  return toCat(rows[0] as Record<string, unknown>);
+}
+
+// ─── Configurações gerais ─────────────────────────────────────────────────────
+
+export async function listarConfiguracoes(): Promise<Configuracoes> {
+  await garantirTabelas();
+  const sql = db();
+  const rows = await sql`SELECT chave, valor FROM configuracoes`;
+  return Object.fromEntries(rows.map((r) => [r.chave as string, r.valor as string]));
+}
+
+export async function salvarConfiguracao(chave: string, valor: string): Promise<void> {
+  const sql = db();
+  await sql`
+    INSERT INTO configuracoes (chave, valor) VALUES (${chave}, ${valor})
+    ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor
+  `;
 }

@@ -1,0 +1,589 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
+import type { Usuario, CategoriaDB } from "@/lib/db";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Aba = "usuarios" | "categorias" | "geral";
+
+const inputCls =
+  "mt-1 w-full px-3 py-2 rounded-lg border border-marca-borda bg-white focus:outline-none focus:ring-2 focus:ring-marca-preto text-sm";
+const labelCls = "text-xs font-medium text-marca-texto-suave";
+
+// ─── Aba Usuários ─────────────────────────────────────────────────────────────
+
+function AbaUsuarios() {
+  const [usuarios, setUsuarios]         = useState<Usuario[]>([]);
+  const [carregando, setCarregando]     = useState(true);
+  const [sucesso, setSucesso]           = useState<string | null>(null);
+  const [erro, setErro]                 = useState<string | null>(null);
+
+  const [novoAberto, setNovoAberto]     = useState(false);
+  const [novo, setNovo]                 = useState({ login: "", nome: "", perfil: "editor" as "master" | "editor", senha: "" });
+  const [enviandoNovo, setEnviandoNovo] = useState(false);
+
+  const [editando, setEditando]         = useState<Usuario | null>(null);
+  const [editForm, setEditForm]         = useState({ login: "", nome: "", perfil: "editor" as "master" | "editor" });
+  const [enviandoEdit, setEnviandoEdit] = useState(false);
+
+  const [senhaForm, setSenhaForm]       = useState<{ id: string; nova: string } | null>(null);
+  const [enviandoSenha, setEnviandoSenha] = useState(false);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+    const resp = await fetch("/api/usuarios");
+    const dados = await resp.json();
+    setUsuarios(Array.isArray(dados) ? dados : []);
+    setCarregando(false);
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  function flash(msg: string) {
+    setSucesso(msg);
+    setTimeout(() => setSucesso(null), 3500);
+  }
+
+  async function toggleAtivo(u: Usuario) {
+    const resp = await fetch(`/api/usuarios/${u.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ativo: !u.ativo }),
+    });
+    if (resp.ok) { flash(u.ativo ? `${u.nome} desativado.` : `${u.nome} ativado.`); carregar(); }
+  }
+
+  async function criarUsuario(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviandoNovo(true); setErro(null);
+    const resp = await fetch("/api/usuarios", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(novo),
+    });
+    const dados = await resp.json();
+    setEnviandoNovo(false);
+    if (!resp.ok) { setErro(dados.erro ?? "Erro ao criar"); return; }
+    setNovoAberto(false);
+    setNovo({ login: "", nome: "", perfil: "editor", senha: "" });
+    flash(`Usuário ${dados.nome} criado.`);
+    carregar();
+  }
+
+  function abrirEditar(u: Usuario) {
+    setEditando(u);
+    setEditForm({ login: u.login, nome: u.nome, perfil: u.perfil });
+  }
+
+  async function salvarEdicao(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editando) return;
+    setEnviandoEdit(true); setErro(null);
+    const resp = await fetch(`/api/usuarios/${editando.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    const dados = await resp.json();
+    setEnviandoEdit(false);
+    if (!resp.ok) { setErro(dados.erro ?? "Erro ao salvar"); return; }
+    setEditando(null);
+    flash("Usuário atualizado.");
+    carregar();
+  }
+
+  async function redefinirSenha(e: React.FormEvent) {
+    e.preventDefault();
+    if (!senhaForm) return;
+    setEnviandoSenha(true); setErro(null);
+    const resp = await fetch(`/api/usuarios/${senhaForm.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ novaSenha: senhaForm.nova }),
+    });
+    const dados = await resp.json();
+    setEnviandoSenha(false);
+    if (!resp.ok) { setErro(dados.erro ?? "Erro ao redefinir"); return; }
+    setSenhaForm(null);
+    flash("Senha redefinida. O usuário deverá trocá-la no próximo acesso.");
+    carregar();
+  }
+
+  return (
+    <div className="space-y-4">
+      {sucesso && <div className="bg-receita-soft border border-receita/20 rounded-lg px-4 py-2.5 text-sm text-receita">{sucesso}</div>}
+      {erro    && <div className="bg-despesa-soft border border-despesa/20 rounded-lg px-4 py-2.5 text-sm text-despesa">{erro}</div>}
+
+      <div className="flex justify-end">
+        <button onClick={() => setNovoAberto(true)}
+          className="px-4 py-2 rounded-lg bg-marca-preto text-white text-sm font-medium hover:opacity-90 transition">
+          + Novo usuário
+        </button>
+      </div>
+
+      {/* Modal: novo usuário */}
+      {novoAberto && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setNovoAberto(false)} />
+          <form onSubmit={criarUsuario}
+            className="relative bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <h2 className="text-base font-bold text-marca-texto">Novo usuário</h2>
+            <label className="block">
+              <span className={labelCls}>Nome completo</span>
+              <input type="text" value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })}
+                className={inputCls} placeholder="Ex: Ana Lima" required />
+            </label>
+            <label className="block">
+              <span className={labelCls}>Login</span>
+              <input type="text" value={novo.login}
+                onChange={(e) => setNovo({ ...novo, login: e.target.value.toLowerCase().replace(/\s/g, "") })}
+                className={inputCls} placeholder="ana.lima" required />
+            </label>
+            <label className="block">
+              <span className={labelCls}>Perfil</span>
+              <select value={novo.perfil} onChange={(e) => setNovo({ ...novo, perfil: e.target.value as "master" | "editor" })}
+                className={inputCls}>
+                <option value="editor">Editor</option>
+                <option value="master">Master</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className={labelCls}>Senha inicial (mín. 6 caracteres)</span>
+              <input type="password" value={novo.senha} onChange={(e) => setNovo({ ...novo, senha: e.target.value })}
+                className={inputCls} placeholder="••••••" required minLength={6} />
+            </label>
+            <p className="text-[11px] text-marca-texto-suave">O usuário será solicitado a trocar a senha no primeiro acesso.</p>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setNovoAberto(false)}
+                className="flex-1 py-2 rounded-lg border border-marca-borda text-sm text-marca-texto-suave hover:bg-marca-fundo transition">Cancelar</button>
+              <button type="submit" disabled={enviandoNovo}
+                className="flex-1 py-2 rounded-lg bg-marca-preto text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
+                {enviandoNovo ? "Criando..." : "Criar"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal: editar usuário */}
+      {editando && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setEditando(null)} />
+          <form onSubmit={salvarEdicao}
+            className="relative bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <h2 className="text-base font-bold text-marca-texto">Editar usuário</h2>
+            <label className="block">
+              <span className={labelCls}>Nome completo</span>
+              <input type="text" value={editForm.nome} onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })}
+                className={inputCls} required />
+            </label>
+            <label className="block">
+              <span className={labelCls}>Login</span>
+              <input type="text" value={editForm.login}
+                onChange={(e) => setEditForm({ ...editForm, login: e.target.value.toLowerCase().replace(/\s/g, "") })}
+                className={inputCls} required />
+            </label>
+            <label className="block">
+              <span className={labelCls}>Perfil</span>
+              <select value={editForm.perfil} onChange={(e) => setEditForm({ ...editForm, perfil: e.target.value as "master" | "editor" })}
+                className={inputCls}>
+                <option value="editor">Editor</option>
+                <option value="master">Master</option>
+              </select>
+            </label>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setEditando(null)}
+                className="flex-1 py-2 rounded-lg border border-marca-borda text-sm text-marca-texto-suave hover:bg-marca-fundo transition">Cancelar</button>
+              <button type="submit" disabled={enviandoEdit}
+                className="flex-1 py-2 rounded-lg bg-marca-preto text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
+                {enviandoEdit ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal: redefinir senha */}
+      {senhaForm && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSenhaForm(null)} />
+          <form onSubmit={redefinirSenha}
+            className="relative bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+            <h2 className="text-base font-bold text-marca-texto">Redefinir senha</h2>
+            <label className="block">
+              <span className={labelCls}>Nova senha (mín. 6 caracteres)</span>
+              <input type="password" value={senhaForm.nova}
+                onChange={(e) => setSenhaForm({ ...senhaForm, nova: e.target.value })}
+                className={inputCls} placeholder="••••••" required minLength={6} />
+            </label>
+            <p className="text-[11px] text-marca-texto-suave">O usuário deverá trocar a senha no próximo acesso.</p>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setSenhaForm(null)}
+                className="flex-1 py-2 rounded-lg border border-marca-borda text-sm text-marca-texto-suave hover:bg-marca-fundo transition">Cancelar</button>
+              <button type="submit" disabled={enviandoSenha}
+                className="flex-1 py-2 rounded-lg bg-marca-preto text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
+                {enviandoSenha ? "Salvando..." : "Redefinir"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Lista */}
+      {carregando ? (
+        <div className="bg-white border border-marca-borda rounded-2xl p-8 text-center text-marca-texto-suave text-sm">Carregando...</div>
+      ) : (
+        <div className="bg-white border border-marca-borda rounded-2xl overflow-hidden">
+          <div className="hidden md:grid md:grid-cols-[1fr_130px_90px_110px_auto] gap-3 px-5 py-3 bg-marca-fundo text-xs font-medium uppercase tracking-wide text-marca-texto-suave">
+            <span>Nome / Login</span><span>Perfil</span><span>Status</span><span>Cadastro</span><span />
+          </div>
+          <ul className="divide-y divide-marca-borda">
+            {usuarios.map((u) => (
+              <li key={u.id} className={`px-5 py-4 flex flex-col md:grid md:grid-cols-[1fr_130px_90px_110px_auto] gap-3 md:items-center ${!u.ativo ? "opacity-50" : ""}`}>
+                <div>
+                  <p className="text-sm font-medium text-marca-texto">{u.nome}</p>
+                  <p className="text-xs text-marca-texto-suave mt-0.5">{u.login}</p>
+                </div>
+                <span className={`inline-flex w-fit px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                  u.perfil === "master" ? "bg-neutral-900 text-white border-neutral-900" : "bg-neutral-100 text-neutral-600 border-neutral-200"
+                }`}>{u.perfil === "master" ? "Master" : "Editor"}</span>
+                <span className={`text-xs font-medium ${u.ativo ? "text-receita" : "text-marca-texto-suave"}`}>
+                  {u.ativo ? "Ativo" : "Inativo"}
+                </span>
+                <span className="text-xs text-marca-texto-suave">{new Date(u.criadoEm).toLocaleDateString("pt-BR")}</span>
+                <div className="flex items-center gap-1.5 flex-wrap justify-start md:justify-end">
+                  <button onClick={() => abrirEditar(u)}
+                    className="px-2.5 py-1.5 rounded-lg border border-marca-borda text-xs text-marca-texto-suave hover:bg-marca-fundo transition">
+                    Editar
+                  </button>
+                  <button onClick={() => setSenhaForm({ id: u.id, nova: "" })}
+                    className="px-2.5 py-1.5 rounded-lg border border-marca-borda text-xs text-marca-texto-suave hover:bg-marca-fundo transition">
+                    Redefinir senha
+                  </button>
+                  <button onClick={() => toggleAtivo(u)}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition ${
+                      u.ativo ? "border border-despesa/30 text-despesa hover:bg-despesa-soft" : "border border-receita/30 text-receita hover:bg-receita-soft"
+                    }`}>
+                    {u.ativo ? "Desativar" : "Ativar"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Aba Categorias ───────────────────────────────────────────────────────────
+
+function AbaCategorias() {
+  const [categorias, setCategorias]     = useState<CategoriaDB[]>([]);
+  const [carregando, setCarregando]     = useState(true);
+  const [filtroTipo, setFiltroTipo]     = useState<"receita" | "despesa">("receita");
+  const [sucesso, setSucesso]           = useState<string | null>(null);
+  const [erro, setErro]                 = useState<string | null>(null);
+
+  const [novaAberta, setNovaAberta]     = useState(false);
+  const [novaNome, setNovaNome]         = useState("");
+  const [enviandoNova, setEnviandoNova] = useState(false);
+
+  const [renomeando, setRenomeando]     = useState<CategoriaDB | null>(null);
+  const [novoNome, setNovoNome]         = useState("");
+  const [enviandoRen, setEnviandoRen]   = useState(false);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+    const resp = await fetch("/api/configuracoes/categorias");
+    const dados = await resp.json();
+    setCategorias(Array.isArray(dados) ? dados : []);
+    setCarregando(false);
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const visiveis = categorias.filter((c) => c.tipo === filtroTipo).sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome));
+
+  function flash(msg: string) {
+    setSucesso(msg);
+    setTimeout(() => setSucesso(null), 3000);
+  }
+
+  async function toggleAtivo(c: CategoriaDB) {
+    const resp = await fetch(`/api/configuracoes/categorias/${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ativo: !c.ativo }),
+    });
+    if (resp.ok) { flash(c.ativo ? `"${c.nome}" desativada.` : `"${c.nome}" ativada.`); carregar(); }
+  }
+
+  async function adicionarCategoria(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviandoNova(true); setErro(null);
+    const resp = await fetch("/api/configuracoes/categorias", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tipo: filtroTipo, nome: novaNome }),
+    });
+    const dados = await resp.json();
+    setEnviandoNova(false);
+    if (!resp.ok) { setErro(dados.erro ?? "Erro ao criar"); return; }
+    setNovaAberta(false); setNovaNome("");
+    flash(`Categoria "${dados.nome}" criada.`);
+    carregar();
+  }
+
+  async function renomear(e: React.FormEvent) {
+    e.preventDefault();
+    if (!renomeando) return;
+    setEnviandoRen(true); setErro(null);
+    const resp = await fetch(`/api/configuracoes/categorias/${renomeando.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: novoNome }),
+    });
+    const dados = await resp.json();
+    setEnviandoRen(false);
+    if (!resp.ok) { setErro(dados.erro ?? "Erro ao renomear"); return; }
+    setRenomeando(null); setNovoNome("");
+    flash("Categoria renomeada.");
+    carregar();
+  }
+
+  return (
+    <div className="space-y-4">
+      {sucesso && <div className="bg-receita-soft border border-receita/20 rounded-lg px-4 py-2.5 text-sm text-receita">{sucesso}</div>}
+      {erro    && <div className="bg-despesa-soft border border-despesa/20 rounded-lg px-4 py-2.5 text-sm text-despesa">{erro}</div>}
+
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-1.5">
+          {(["receita", "despesa"] as const).map((t) => (
+            <button key={t} onClick={() => setFiltroTipo(t)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                filtroTipo === t ? "bg-marca-preto text-white border-marca-preto" : "bg-white text-marca-texto-suave border-marca-borda hover:bg-marca-fundo"
+              }`}>
+              {t === "receita" ? "Receitas" : "Despesas"}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setNovaAberta(true)}
+          className="px-4 py-2 rounded-lg bg-marca-preto text-white text-sm font-medium hover:opacity-90 transition">
+          + Nova categoria
+        </button>
+      </div>
+
+      {/* Modal: nova categoria */}
+      {novaAberta && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setNovaAberta(false)} />
+          <form onSubmit={adicionarCategoria}
+            className="relative bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+            <h2 className="text-base font-bold text-marca-texto">
+              Nova categoria de {filtroTipo === "receita" ? "receita" : "despesa"}
+            </h2>
+            <label className="block">
+              <span className={labelCls}>Nome</span>
+              <input type="text" value={novaNome} onChange={(e) => setNovaNome(e.target.value)}
+                className={inputCls} placeholder="Ex: Premiações" required />
+            </label>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setNovaAberta(false)}
+                className="flex-1 py-2 rounded-lg border border-marca-borda text-sm text-marca-texto-suave hover:bg-marca-fundo transition">Cancelar</button>
+              <button type="submit" disabled={enviandoNova}
+                className="flex-1 py-2 rounded-lg bg-marca-preto text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
+                {enviandoNova ? "Criando..." : "Criar"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal: renomear */}
+      {renomeando && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setRenomeando(null)} />
+          <form onSubmit={renomear}
+            className="relative bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+            <h2 className="text-base font-bold text-marca-texto">Renomear categoria</h2>
+            <label className="block">
+              <span className={labelCls}>Novo nome</span>
+              <input type="text" value={novoNome} onChange={(e) => setNovoNome(e.target.value)}
+                className={inputCls} placeholder={renomeando.nome} required />
+            </label>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setRenomeando(null)}
+                className="flex-1 py-2 rounded-lg border border-marca-borda text-sm text-marca-texto-suave hover:bg-marca-fundo transition">Cancelar</button>
+              <button type="submit" disabled={enviandoRen}
+                className="flex-1 py-2 rounded-lg bg-marca-preto text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
+                {enviandoRen ? "Salvando..." : "Renomear"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Lista */}
+      {carregando ? (
+        <div className="bg-white border border-marca-borda rounded-2xl p-8 text-center text-marca-texto-suave text-sm">Carregando...</div>
+      ) : (
+        <div className="bg-white border border-marca-borda rounded-2xl overflow-hidden">
+          <ul className="divide-y divide-marca-borda">
+            {visiveis.length === 0 && (
+              <li className="px-5 py-8 text-center text-marca-texto-suave text-sm">Nenhuma categoria.</li>
+            )}
+            {visiveis.map((c) => (
+              <li key={c.id} className={`px-5 py-3.5 flex items-center justify-between gap-3 ${!c.ativo ? "opacity-50" : ""}`}>
+                <div className="flex items-center gap-2.5">
+                  <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${c.tipo === "receita" ? "bg-receita" : "bg-despesa"}`} />
+                  <span className="text-sm text-marca-texto">{c.nome}</span>
+                  {!c.ativo && <span className="text-[10px] font-semibold text-marca-texto-suave bg-neutral-100 border border-neutral-200 px-1.5 py-0.5 rounded">Inativa</span>}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => { setRenomeando(c); setNovoNome(c.nome); }}
+                    className="px-2.5 py-1.5 rounded-lg border border-marca-borda text-xs text-marca-texto-suave hover:bg-marca-fundo transition">
+                    Renomear
+                  </button>
+                  <button onClick={() => toggleAtivo(c)}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition ${
+                      c.ativo ? "border border-despesa/30 text-despesa hover:bg-despesa-soft" : "border border-receita/30 text-receita hover:bg-receita-soft"
+                    }`}>
+                    {c.ativo ? "Desativar" : "Ativar"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Aba Geral ────────────────────────────────────────────────────────────────
+
+function AbaGeral() {
+  const [config, setConfig]       = useState({ nome_app: "", moeda: "", formato_data: "" });
+  const [carregando, setCarregando] = useState(true);
+  const [enviando, setEnviando]   = useState(false);
+  const [sucesso, setSucesso]     = useState<string | null>(null);
+  const [erro, setErro]           = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/configuracoes/geral")
+      .then((r) => r.json())
+      .then((dados) => {
+        setConfig({
+          nome_app:     dados.nome_app     ?? "RANKEN Financeiro",
+          moeda:        dados.moeda        ?? "R$",
+          formato_data: dados.formato_data ?? "dd/mm/aaaa",
+        });
+        setCarregando(false);
+      });
+  }, []);
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true); setErro(null);
+    const resp = await fetch("/api/configuracoes/geral", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    });
+    const dados = await resp.json();
+    setEnviando(false);
+    if (!resp.ok) { setErro(dados.erro ?? "Erro ao salvar"); return; }
+    setSucesso("Configurações salvas.");
+    setTimeout(() => setSucesso(null), 3000);
+  }
+
+  if (carregando) {
+    return <div className="bg-white border border-marca-borda rounded-2xl p-8 text-center text-marca-texto-suave text-sm">Carregando...</div>;
+  }
+
+  return (
+    <form onSubmit={salvar} className="bg-white border border-marca-borda rounded-2xl p-6 space-y-5 max-w-md">
+      {sucesso && <div className="bg-receita-soft border border-receita/20 rounded-lg px-4 py-2.5 text-sm text-receita">{sucesso}</div>}
+      {erro    && <div className="bg-despesa-soft border border-despesa/20 rounded-lg px-4 py-2.5 text-sm text-despesa">{erro}</div>}
+
+      <label className="block">
+        <span className={labelCls}>Nome do app</span>
+        <input type="text" value={config.nome_app}
+          onChange={(e) => setConfig({ ...config, nome_app: e.target.value })}
+          className={inputCls} required />
+      </label>
+
+      <label className="block">
+        <span className={labelCls}>Moeda</span>
+        <select value={config.moeda} onChange={(e) => setConfig({ ...config, moeda: e.target.value })} className={inputCls}>
+          <option value="R$">R$ — Real Brasileiro</option>
+          <option value="US$">US$ — Dólar Americano</option>
+          <option value="€">€ — Euro</option>
+        </select>
+      </label>
+
+      <label className="block">
+        <span className={labelCls}>Formato de data</span>
+        <select value={config.formato_data} onChange={(e) => setConfig({ ...config, formato_data: e.target.value })} className={inputCls}>
+          <option value="dd/mm/aaaa">dd/mm/aaaa (padrão pt-BR)</option>
+          <option value="mm/dd/aaaa">mm/dd/aaaa (EUA)</option>
+          <option value="aaaa-mm-dd">aaaa-mm-dd (ISO 8601)</option>
+        </select>
+      </label>
+
+      <button type="submit" disabled={enviando}
+        className="w-full py-2.5 rounded-lg bg-marca-preto text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
+        {enviando ? "Salvando..." : "Salvar alterações"}
+      </button>
+    </form>
+  );
+}
+
+// ─── Página principal ─────────────────────────────────────────────────────────
+
+const ABAS: { id: Aba; rotulo: string }[] = [
+  { id: "usuarios",   rotulo: "Usuários"   },
+  { id: "categorias", rotulo: "Categorias" },
+  { id: "geral",      rotulo: "Geral"      },
+];
+
+export default function ConfiguracoesPage() {
+  const router  = useRouter();
+  const usuario = useAuth();
+  const [aba, setAba] = useState<Aba>("usuarios");
+
+  useEffect(() => {
+    if (usuario !== null && usuario?.perfil !== "master") {
+      router.push("/");
+    }
+  }, [usuario, router]);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-marca-texto">Configurações</h1>
+        <p className="text-sm text-marca-texto-suave">Gerencie usuários, categorias e preferências do app.</p>
+      </div>
+
+      {/* Abas */}
+      <div className="flex border-b border-marca-borda">
+        {ABAS.map((a) => (
+          <button key={a.id} type="button" onClick={() => setAba(a.id)}
+            className={`py-3 mr-5 text-sm font-medium border-b-2 transition ${
+              aba === a.id ? "border-marca-preto text-marca-preto" : "border-transparent text-marca-texto-suave hover:text-marca-preto"
+            }`}>
+            {a.rotulo}
+          </button>
+        ))}
+      </div>
+
+      {aba === "usuarios"   && <AbaUsuarios />}
+      {aba === "categorias" && <AbaCategorias />}
+      {aba === "geral"      && <AbaGeral />}
+    </div>
+  );
+}

@@ -6,8 +6,9 @@ import {
   filtrarPorMes,
   filtrarPorTipo,
   lerLancamentos,
+  listarCategorias,
 } from "@/lib/db";
-import { validarCategoria, type TipoLancamento } from "@/lib/categorias";
+import type { TipoLancamento } from "@/lib/categorias";
 import type { Frequencia } from "@/lib/recorrencia";
 import { getSession } from "@/lib/auth";
 
@@ -52,7 +53,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ erro: "Descrição obrigatória" }, { status: 400 });
   if (tipo !== "receita" && tipo !== "despesa")
     return NextResponse.json({ erro: "Tipo inválido" }, { status: 400 });
-  if (typeof categoria !== "string" || !validarCategoria(tipo, categoria))
+  if (typeof categoria !== "string" || !categoria.trim())
+    return NextResponse.json({ erro: "Categoria obrigatória" }, { status: 400 });
+  // Validate against active DB categories
+  const catsAtivas = await listarCategorias(tipo);
+  const nomesAtivos = catsAtivas.filter((c) => c.ativo).map((c) => c.nome);
+  if (!nomesAtivos.includes(categoria))
     return NextResponse.json({ erro: "Categoria inválida para o tipo" }, { status: 400 });
 
   // ── AVULSO ────────────────────────────────────────────────────────────────

@@ -1,13 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  CATEGORIAS_DESPESA,
-  CATEGORIAS_RECEITA,
-  type TipoLancamento,
-} from "@/lib/categorias";
+import { useEffect, useMemo, useState } from "react";
+import type { TipoLancamento } from "@/lib/categorias";
 import { hojeISO } from "@/lib/format";
-import type { TipoLancamentoExtendido, Frequencia } from "@/lib/db";
+import type { TipoLancamentoExtendido, Frequencia, CategoriaDB } from "@/lib/db";
 
 interface Props {
   onAdicionado?: () => void;
@@ -29,7 +25,19 @@ export default function NovoLancamento({ onAdicionado }: Props) {
   const [tipoLancamento, setTipoLancamento] = useState<TipoLancamentoExtendido>("avulso");
   const [tipo, setTipo] = useState<TipoLancamento>("receita");
   const [descricao, setDescricao] = useState("");
-  const [categoria, setCategoria] = useState<string>(CATEGORIAS_RECEITA[0]);
+  const [categoria, setCategoria] = useState<string>("");
+  const [todasCategorias, setTodasCategorias] = useState<CategoriaDB[]>([]);
+
+  useEffect(() => {
+    fetch("/api/configuracoes/categorias")
+      .then((r) => r.json())
+      .then((data: CategoriaDB[]) => {
+        setTodasCategorias(data);
+        const primeiro = data.find((c) => c.tipo === "receita" && c.ativo);
+        if (primeiro) setCategoria(primeiro.nome);
+      })
+      .catch(() => {});
+  }, []);
 
   // Avulso
   const [valor, setValor] = useState("");
@@ -51,14 +59,14 @@ export default function NovoLancamento({ onAdicionado }: Props) {
   const [erro, setErro] = useState<string | null>(null);
 
   const categorias = useMemo(
-    () => (tipo === "receita" ? CATEGORIAS_RECEITA : CATEGORIAS_DESPESA),
-    [tipo]
+    () => todasCategorias.filter((c) => c.tipo === tipo && c.ativo).map((c) => c.nome),
+    [todasCategorias, tipo]
   );
 
   function trocarTipo(novo: TipoLancamento) {
     setTipo(novo);
-    const lista = novo === "receita" ? CATEGORIAS_RECEITA : CATEGORIAS_DESPESA;
-    setCategoria(lista[0]);
+    const primeiro = todasCategorias.find((c) => c.tipo === novo && c.ativo);
+    setCategoria(primeiro?.nome ?? "");
   }
 
   function trocarTipoLancamento(novo: TipoLancamentoExtendido) {

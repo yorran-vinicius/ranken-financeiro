@@ -18,6 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const b = body as Record<string, unknown>;
   const dados: Parameters<typeof atualizarUsuario>[1] = {};
 
+  if (typeof b.login === "string" && b.login.trim()) dados.login = b.login.trim().toLowerCase();
   if (typeof b.nome === "string")   dados.nome = b.nome.trim();
   if (typeof b.perfil === "string" && (b.perfil === "master" || b.perfil === "editor"))
     dados.perfil = b.perfil;
@@ -31,9 +32,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     dados.deveAtualizarSenha = true;
   }
 
-  const atualizado = await atualizarUsuario(params.id, dados);
-  if (!atualizado) {
-    return NextResponse.json({ erro: "Usuário não encontrado" }, { status: 404 });
+  try {
+    const atualizado = await atualizarUsuario(params.id, dados);
+    if (!atualizado) {
+      return NextResponse.json({ erro: "Usuário não encontrado" }, { status: 404 });
+    }
+    return NextResponse.json(atualizado);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg.includes("unique") || msg.includes("duplicate")) {
+      return NextResponse.json({ erro: "Login já está em uso" }, { status: 409 });
+    }
+    throw e;
   }
-  return NextResponse.json(atualizado);
 }

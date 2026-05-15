@@ -5,8 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 
 const ITENS = [
-  { href: "/", rotulo: "Dashboard" },
-  { href: "/lancamentos", rotulo: "Lançamentos" },
+  { href: "/",            rotulo: "Dashboard"    },
+  { href: "/lancamentos", rotulo: "Lançamentos"  },
 ];
 
 export default function NavBar() {
@@ -52,14 +52,14 @@ export default function NavBar() {
           })}
           {usuario?.perfil === "master" && (
             <Link
-              href="/usuarios"
+              href="/configuracoes"
               className={`px-3 py-1.5 rounded-md text-sm transition ${
-                pathname === "/usuarios"
+                pathname === "/configuracoes"
                   ? "bg-white text-marca-preto"
                   : "text-white/70 hover:text-white hover:bg-white/10"
               }`}
             >
-              Usuários
+              Configurações
             </Link>
           )}
         </nav>
