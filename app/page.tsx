@@ -5,7 +5,6 @@ import CardsResumo from "@/components/CardsResumo";
 import FiltroMes from "@/components/FiltroMes";
 import GraficoBarras from "@/components/GraficoBarras";
 import GraficoPizza from "@/components/GraficoPizza";
-import NovoLancamento from "@/components/NovoLancamento";
 import PainelMetas from "@/components/PainelMetas";
 import PontoEquilibrio from "@/components/PontoEquilibrio";
 import type { Lancamento } from "@/lib/db";
@@ -73,6 +72,13 @@ export default function DashboardPage() {
   }, [mes]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Escuta o evento do botão flutuante (ClientLayout)
+  useEffect(() => {
+    const handler = () => carregar();
+    window.addEventListener("ranken:lancamento-adicionado", handler);
+    return () => window.removeEventListener("ranken:lancamento-adicionado", handler);
+  }, [carregar]);
 
   // ── Feature flags ─────────────────────────────────────────────────────────
   const funcMetas      = config.func_metas      === "true";
@@ -386,18 +392,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Formulário + gráficos de pizza */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-1">
-          <NovoLancamento
-            onAdicionado={carregar}
-            cidades={cidadesDisp}
-          />
-        </div>
-        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <GraficoPizza lancamentos={lancamentosVisiveis} tipo="receita" />
-          <GraficoPizza lancamentos={lancamentosVisiveis} tipo="despesa" />
-        </div>
+      {/* Gráficos de pizza — full width */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <GraficoPizza lancamentos={lancamentosVisiveis} tipo="receita" />
+        <GraficoPizza lancamentos={lancamentosVisiveis} tipo="despesa" />
       </div>
 
       {/* Gráfico de barras histórico */}

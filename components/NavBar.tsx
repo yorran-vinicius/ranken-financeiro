@@ -22,7 +22,7 @@ export default function NavBar() {
   }
 
   return (
-    <header className="bg-marca-preto text-white">
+    <header className="hidden sm:block bg-marca-preto text-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2 shrink-0">
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-md bg-white text-marca-preto font-black tracking-tight">

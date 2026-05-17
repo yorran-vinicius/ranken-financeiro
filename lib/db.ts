@@ -34,6 +34,8 @@ export interface Lancamento {
   categoria: string;
   data: string;
   cidade: string | null;
+  notas: string | null;
+  favorito: boolean;
   tipoLancamento: TipoLancamentoExtendido;
   parcelaNum: number | null;
   parcelaTotal: number | null;
@@ -88,6 +90,8 @@ function toRow(row: Record<string, unknown>): Lancamento {
     categoria:       row.categoria as string,
     data:            row.data as string,
     cidade:          (row.cidade as string) ?? null,
+    notas:           (row.notas as string) ?? null,
+    favorito:        Boolean(row.favorito),
     tipoLancamento:  ((row.tipo_lancamento as string) ?? "avulso") as TipoLancamentoExtendido,
     parcelaNum:      row.parcela_num != null ? Number(row.parcela_num) : null,
     parcelaTotal:    row.parcela_total != null ? Number(row.parcela_total) : null,
@@ -221,6 +225,8 @@ export async function garantirTabelas() {
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS cancelado BOOLEAN NOT NULL DEFAULT FALSE`,
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS criado_por_id TEXT`,
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS cidade TEXT`,
+    sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS favorito BOOLEAN NOT NULL DEFAULT FALSE`,
+    sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS notas TEXT`,
   ]);
 
   // Seed: usuários iniciais
@@ -337,7 +343,7 @@ export async function lerCriadorGrupo(grupoId: string): Promise<string | null> {
 // ─── Criação de lançamentos ───────────────────────────────────────────────────
 
 export async function adicionarAvulso(
-  input: Omit<Lancamento, "id" | "grupoId" | "cidade" | "tipoLancamento" | "parcelaNum" | "parcelaTotal" | "cancelado" | "criadoEm" | "criadoPorId" | "criadoPorNome">,
+  input: Omit<Lancamento, "id" | "grupoId" | "cidade" | "notas" | "favorito" | "tipoLancamento" | "parcelaNum" | "parcelaTotal" | "cancelado" | "criadoEm" | "criadoPorId" | "criadoPorNome">,
   criadoPorId?: string | null,
   cidade?: string | null,
 ): Promise<Lancamento> {
@@ -442,6 +448,44 @@ export async function adicionarParcelado(
 }
 
 // ─── Remoção ──────────────────────────────────────────────────────────────────
+
+export async function atualizarLancamento(
+  id: string,
+  dados: {
+    descricao: string;
+    valor: number;
+    tipo: string;
+    categoria: string;
+    data: string;
+    notas: string | null;
+    cidade: string | null;
+  },
+): Promise<Lancamento | null> {
+  const sql = db();
+  const rows = await sql`
+    UPDATE lancamentos SET
+      descricao = ${dados.descricao},
+      valor     = ${dados.valor},
+      tipo      = ${dados.tipo},
+      categoria = ${dados.categoria},
+      data      = ${dados.data},
+      notas     = ${dados.notas},
+      cidade    = ${dados.cidade}
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  if (rows.length === 0) return null;
+  return { ...toRow(rows[0] as Record<string, unknown>), criadoPorNome: null };
+}
+
+export async function toggleFavorito(id: string, favorito: boolean): Promise<Lancamento | null> {
+  const sql = db();
+  const rows = await sql`
+    UPDATE lancamentos SET favorito = ${favorito} WHERE id = ${id} RETURNING *
+  `;
+  if (rows.length === 0) return null;
+  return { ...toRow(rows[0] as Record<string, unknown>), criadoPorNome: null };
+}
 
 export async function removerLancamento(id: string): Promise<boolean> {
   const sql = db();
