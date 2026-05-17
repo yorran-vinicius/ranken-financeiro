@@ -61,6 +61,8 @@ export async function POST(req: NextRequest) {
   if (!nomesAtivos.includes(categoria))
     return NextResponse.json({ erro: "Categoria inválida para o tipo" }, { status: 400 });
 
+  const cidade = typeof b.cidade === "string" && b.cidade.trim() ? b.cidade.trim() : null;
+
   // ── AVULSO ────────────────────────────────────────────────────────────────
   if (tipoLancamento === "avulso") {
     const valorNum = Number(b.valor);
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
     const novo = await adicionarAvulso(
       { descricao: descricao.trim(), valor: Math.round(valorNum * 100) / 100, tipo, categoria, data: b.data as string },
       criadoPorId,
+      cidade,
     );
     return NextResponse.json(novo, { status: 201 });
   }
@@ -96,6 +99,7 @@ export async function POST(req: NextRequest) {
         frequencia: b.frequencia as Frequencia,
         dataInicio: b.dataInicio,
         dataFim: (b.dataFim as string) ?? null,
+        cidade,
       },
       criadoPorId,
     );
@@ -127,7 +131,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ erro: "Data da primeira parcela inválida" }, { status: 400 });
 
     const grupo = await adicionarParcelado(
-      { descricao: descricao.trim(), valorParcela, valorTotal, tipo, categoria, totalParcelas, dataPrimeira: b.dataPrimeira },
+      { descricao: descricao.trim(), valorParcela, valorTotal, tipo, categoria, totalParcelas, dataPrimeira: b.dataPrimeira, cidade },
       criadoPorId,
     );
     return NextResponse.json(grupo, { status: 201 });

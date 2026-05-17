@@ -20,7 +20,14 @@ export async function POST(req: NextRequest) {
   catch { return NextResponse.json({ erro: "JSON inválido" }, { status: 400 }); }
 
   const b = body as Record<string, string>;
-  const CHAVES_PERMITIDAS = ["nome_app", "moeda", "formato_data"];
+  const CHAVES_PERMITIDAS = [
+    "nome_app", "moeda", "formato_data",
+    "func_metas", "meta_anual",
+    "func_equilibrio", "custo_fixo_mensal",
+    "func_cidade", "cidades",
+    "func_pdf",
+    "func_alertas", "alertas_limites",
+  ];
 
   await Promise.all(
     CHAVES_PERMITIDAS

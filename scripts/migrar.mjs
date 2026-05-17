@@ -88,6 +88,7 @@ async function migrar() {
     "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS parcela_total INT",
     "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS cancelado BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS criado_por_id TEXT",
+    "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS cidade TEXT",
   ];
   for (const q of alteracoes) {
     try { await sql.unsafe(q); } catch { /* coluna já existe */ }
@@ -155,6 +156,15 @@ async function migrar() {
   await sql`INSERT INTO configuracoes (chave, valor) VALUES ('nome_app', 'RANKEN Financeiro') ON CONFLICT (chave) DO NOTHING`;
   await sql`INSERT INTO configuracoes (chave, valor) VALUES ('moeda', 'R$') ON CONFLICT (chave) DO NOTHING`;
   await sql`INSERT INTO configuracoes (chave, valor) VALUES ('formato_data', 'dd/mm/aaaa') ON CONFLICT (chave) DO NOTHING`;
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_metas', 'false') ON CONFLICT (chave) DO NOTHING`;
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('meta_anual', '300000') ON CONFLICT (chave) DO NOTHING`;
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_equilibrio', 'false') ON CONFLICT (chave) DO NOTHING`;
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('custo_fixo_mensal', '20000') ON CONFLICT (chave) DO NOTHING`;
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_cidade', 'false') ON CONFLICT (chave) DO NOTHING`;
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('cidades', 'Maringá,Londrina,Curitiba,Geral') ON CONFLICT (chave) DO NOTHING`;
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_pdf', 'false') ON CONFLICT (chave) DO NOTHING`;
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_alertas', 'false') ON CONFLICT (chave) DO NOTHING`;
+  await sql`INSERT INTO configuracoes (chave, valor) VALUES ('alertas_limites', '{}') ON CONFLICT (chave) DO NOTHING`;
   console.log("✅  Configurações padrão OK");
 
   // ── Verificação final ─────────────────────────────────────────────────────────

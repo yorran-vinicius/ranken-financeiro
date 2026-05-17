@@ -464,41 +464,131 @@ function AbaCategorias() {
   );
 }
 
+// ─── Toggle switch ────────────────────────────────────────────────────────────
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+        checked ? "bg-marca-preto" : "bg-neutral-200"
+      }`}
+    >
+      <span
+        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+          checked ? "translate-x-5" : "translate-x-0"
+        }`}
+      />
+    </button>
+  );
+}
+
+function FeatureCard({
+  label, desc, checked, onChange, children,
+}: {
+  label: string; desc: string; checked: boolean; onChange: (v: boolean) => void; children?: React.ReactNode;
+}) {
+  return (
+    <div className={`border rounded-xl transition-colors ${checked ? "border-marca-borda" : "border-dashed border-neutral-200"}`}>
+      <div className="flex items-center justify-between px-4 py-3.5 gap-4">
+        <div>
+          <p className="text-sm font-semibold text-marca-texto">{label}</p>
+          <p className="text-xs text-marca-texto-suave mt-0.5">{desc}</p>
+        </div>
+        <Toggle checked={checked} onChange={onChange} />
+      </div>
+      {checked && children && (
+        <div className="px-4 pb-4 border-t border-marca-borda/50 pt-3 space-y-3">{children}</div>
+      )}
+    </div>
+  );
+}
+
 // ─── Aba Geral ────────────────────────────────────────────────────────────────
 
 function AbaGeral() {
-  const [config, setConfig]       = useState({ nome_app: "", moeda: "", formato_data: "" });
+  // Config básica
+  const [nomeApp, setNomeApp]           = useState("RANKEN Financeiro");
+  const [moeda, setMoeda]               = useState("R$");
+  const [formatoData, setFormatoData]   = useState("dd/mm/aaaa");
+  // Funcionalidades
+  const [funcMetas, setFuncMetas]             = useState(false);
+  const [metaAnual, setMetaAnual]             = useState("300000");
+  const [funcEquilibrio, setFuncEquilibrio]   = useState(false);
+  const [custoFixo, setCustoFixo]             = useState("20000");
+  const [funcCidade, setFuncCidade]           = useState(false);
+  const [cidades, setCidades]                 = useState("Maringá,Londrina,Curitiba,Geral");
+  const [funcPdf, setFuncPdf]                 = useState(false);
+  const [funcAlertas, setFuncAlertas]         = useState(false);
+  const [alertasLimites, setAlertasLimites]   = useState<Record<string, string>>({});
+  const [catsDespesa, setCatsDespesa]         = useState<CategoriaDB[]>([]);
+
   const [carregando, setCarregando] = useState(true);
-  const [enviando, setEnviando]   = useState(false);
-  const [sucesso, setSucesso]     = useState<string | null>(null);
-  const [erro, setErro]           = useState<string | null>(null);
+  const [enviando, setEnviando]     = useState(false);
+  const [sucesso, setSucesso]       = useState<string | null>(null);
+  const [erro, setErro]             = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/configuracoes/geral")
-      .then((r) => r.json())
-      .then((dados) => {
-        setConfig({
-          nome_app:     dados.nome_app     ?? "RANKEN Financeiro",
-          moeda:        dados.moeda        ?? "R$",
-          formato_data: dados.formato_data ?? "dd/mm/aaaa",
-        });
-        setCarregando(false);
-      });
+    Promise.all([
+      fetch("/api/configuracoes/geral").then((r) => r.json()),
+      fetch("/api/configuracoes/categorias?tipo=despesa").then((r) => r.json()),
+    ]).then(([dados, cats]) => {
+      setNomeApp(dados.nome_app     ?? "RANKEN Financeiro");
+      setMoeda(dados.moeda          ?? "R$");
+      setFormatoData(dados.formato_data ?? "dd/mm/aaaa");
+      setFuncMetas(dados.func_metas === "true");
+      setMetaAnual(dados.meta_anual ?? "300000");
+      setFuncEquilibrio(dados.func_equilibrio === "true");
+      setCustoFixo(dados.custo_fixo_mensal ?? "20000");
+      setFuncCidade(dados.func_cidade === "true");
+      setCidades(dados.cidades ?? "Maringá,Londrina,Curitiba,Geral");
+      setFuncPdf(dados.func_pdf === "true");
+      setFuncAlertas(dados.func_alertas === "true");
+      try {
+        const lim = JSON.parse(dados.alertas_limites ?? "{}");
+        const str: Record<string, string> = {};
+        for (const [k, v] of Object.entries(lim)) str[k] = String(v);
+        setAlertasLimites(str);
+      } catch { setAlertasLimites({}); }
+      setCatsDespesa(Array.isArray(cats) ? cats.filter((c: CategoriaDB) => c.ativo) : []);
+      setCarregando(false);
+    });
   }, []);
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
     setEnviando(true); setErro(null);
+
+    const alertasJSON: Record<string, number> = {};
+    for (const [cat, val] of Object.entries(alertasLimites)) {
+      const n = Number(String(val).replace(",", "."));
+      if (Number.isFinite(n) && n > 0) alertasJSON[cat] = n;
+    }
+
+    const body = {
+      nome_app: nomeApp, moeda, formato_data: formatoData,
+      func_metas:         String(funcMetas),
+      meta_anual:         metaAnual,
+      func_equilibrio:    String(funcEquilibrio),
+      custo_fixo_mensal:  custoFixo,
+      func_cidade:        String(funcCidade),
+      cidades,
+      func_pdf:           String(funcPdf),
+      func_alertas:       String(funcAlertas),
+      alertas_limites:    JSON.stringify(alertasJSON),
+    };
+
     const resp = await fetch("/api/configuracoes/geral", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config),
+      body: JSON.stringify(body),
     });
     const dados = await resp.json();
     setEnviando(false);
     if (!resp.ok) { setErro(dados.erro ?? "Erro ao salvar"); return; }
-    setSucesso("Configurações salvas.");
-    setTimeout(() => setSucesso(null), 3000);
+    setSucesso("Configurações salvas com sucesso.");
+    setTimeout(() => setSucesso(null), 3500);
   }
 
   if (carregando) {
@@ -506,38 +596,133 @@ function AbaGeral() {
   }
 
   return (
-    <form onSubmit={salvar} className="bg-white border border-marca-borda rounded-2xl p-6 space-y-5 max-w-md">
+    <form onSubmit={salvar} className="space-y-6 max-w-lg">
       {sucesso && <div className="bg-receita-soft border border-receita/20 rounded-lg px-4 py-2.5 text-sm text-receita">{sucesso}</div>}
       {erro    && <div className="bg-despesa-soft border border-despesa/20 rounded-lg px-4 py-2.5 text-sm text-despesa">{erro}</div>}
 
-      <label className="block">
-        <span className={labelCls}>Nome do app</span>
-        <input type="text" value={config.nome_app}
-          onChange={(e) => setConfig({ ...config, nome_app: e.target.value })}
-          className={inputCls} required />
-      </label>
+      {/* Config básica */}
+      <div className="bg-white border border-marca-borda rounded-2xl p-5 space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-marca-texto-suave">Preferências gerais</p>
 
-      <label className="block">
-        <span className={labelCls}>Moeda</span>
-        <select value={config.moeda} onChange={(e) => setConfig({ ...config, moeda: e.target.value })} className={inputCls}>
-          <option value="R$">R$ — Real Brasileiro</option>
-          <option value="US$">US$ — Dólar Americano</option>
-          <option value="€">€ — Euro</option>
-        </select>
-      </label>
+        <label className="block">
+          <span className={labelCls}>Nome do app</span>
+          <input type="text" value={nomeApp} onChange={(e) => setNomeApp(e.target.value)} className={inputCls} required />
+        </label>
 
-      <label className="block">
-        <span className={labelCls}>Formato de data</span>
-        <select value={config.formato_data} onChange={(e) => setConfig({ ...config, formato_data: e.target.value })} className={inputCls}>
-          <option value="dd/mm/aaaa">dd/mm/aaaa (padrão pt-BR)</option>
-          <option value="mm/dd/aaaa">mm/dd/aaaa (EUA)</option>
-          <option value="aaaa-mm-dd">aaaa-mm-dd (ISO 8601)</option>
-        </select>
-      </label>
+        <label className="block">
+          <span className={labelCls}>Moeda</span>
+          <select value={moeda} onChange={(e) => setMoeda(e.target.value)} className={inputCls}>
+            <option value="R$">R$ — Real Brasileiro</option>
+            <option value="US$">US$ — Dólar Americano</option>
+            <option value="€">€ — Euro</option>
+          </select>
+        </label>
+
+        <label className="block">
+          <span className={labelCls}>Formato de data</span>
+          <select value={formatoData} onChange={(e) => setFormatoData(e.target.value)} className={inputCls}>
+            <option value="dd/mm/aaaa">dd/mm/aaaa (padrão pt-BR)</option>
+            <option value="mm/dd/aaaa">mm/dd/aaaa (EUA)</option>
+            <option value="aaaa-mm-dd">aaaa-mm-dd (ISO 8601)</option>
+          </select>
+        </label>
+      </div>
+
+      {/* Funcionalidades */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-marca-texto-suave px-1">Funcionalidades</p>
+
+        {/* 1. Painel de Metas */}
+        <FeatureCard
+          label="Painel de Metas"
+          desc="Acompanhe o progresso da meta de receita anual com barra de progresso e projeção."
+          checked={funcMetas}
+          onChange={setFuncMetas}
+        >
+          <label className="block">
+            <span className={labelCls}>Meta anual (R$)</span>
+            <input type="number" min="0" step="1000" value={metaAnual}
+              onChange={(e) => setMetaAnual(e.target.value)} className={inputCls} />
+          </label>
+        </FeatureCard>
+
+        {/* 2. Ponto de Equilíbrio */}
+        <FeatureCard
+          label="Ponto de Equilíbrio"
+          desc="Mostra se a receita do mês cobre o custo fixo mensal configurado."
+          checked={funcEquilibrio}
+          onChange={setFuncEquilibrio}
+        >
+          <label className="block">
+            <span className={labelCls}>Custo fixo mensal (R$)</span>
+            <input type="number" min="0" step="100" value={custoFixo}
+              onChange={(e) => setCustoFixo(e.target.value)} className={inputCls} />
+          </label>
+        </FeatureCard>
+
+        {/* 3. Filtro por Cidade */}
+        <FeatureCard
+          label="Filtro por Cidade"
+          desc="Adiciona campo cidade nos lançamentos e filtro no dashboard."
+          checked={funcCidade}
+          onChange={setFuncCidade}
+        >
+          <label className="block">
+            <span className={labelCls}>Cidades disponíveis (separadas por vírgula)</span>
+            <input type="text" value={cidades} onChange={(e) => setCidades(e.target.value)}
+              placeholder="Maringá,Londrina,Curitiba,Geral" className={inputCls} />
+          </label>
+          <p className="text-[11px] text-marca-texto-suave">Exemplo: Maringá,Londrina,Curitiba,Geral</p>
+        </FeatureCard>
+
+        {/* 4. Exportar PDF */}
+        <FeatureCard
+          label="Exportar Relatório PDF"
+          desc="Exibe botão no dashboard para exportar relatório mensal em PDF para reuniões."
+          checked={funcPdf}
+          onChange={setFuncPdf}
+        />
+
+        {/* 5. Alertas Automáticos */}
+        <FeatureCard
+          label="Alertas Automáticos"
+          desc="Alerta visual quando os gastos de uma categoria ultrapassarem o limite configurado."
+          checked={funcAlertas}
+          onChange={setFuncAlertas}
+        >
+          <p className="text-xs text-marca-texto-suave">Limite mensal por categoria de despesa (deixe em branco para sem limite):</p>
+          {catsDespesa.length === 0 ? (
+            <p className="text-xs text-marca-texto-suave italic">Nenhuma categoria de despesa ativa.</p>
+          ) : (
+            <div className="space-y-2">
+              {catsDespesa.map((cat) => (
+                <div key={cat.id} className="flex items-center gap-3">
+                  <span className="text-sm text-marca-texto flex-1">{cat.nome}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-marca-texto-suave">R$</span>
+                    <input
+                      type="number" min="0" step="100"
+                      value={alertasLimites[cat.nome] ?? ""}
+                      onChange={(e) =>
+                        setAlertasLimites((prev) => ({
+                          ...prev,
+                          [cat.nome]: e.target.value,
+                        }))
+                      }
+                      placeholder="Sem limite"
+                      className="w-32 px-2.5 py-1.5 rounded-lg border border-marca-borda text-sm focus:outline-none focus:ring-2 focus:ring-marca-preto"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </FeatureCard>
+      </div>
 
       <button type="submit" disabled={enviando}
         className="w-full py-2.5 rounded-lg bg-marca-preto text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
-        {enviando ? "Salvando..." : "Salvar alterações"}
+        {enviando ? "Salvando..." : "Salvar configurações"}
       </button>
     </form>
   );

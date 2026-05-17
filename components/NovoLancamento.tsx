@@ -7,6 +7,7 @@ import type { TipoLancamentoExtendido, Frequencia, CategoriaDB } from "@/lib/db"
 
 interface Props {
   onAdicionado?: () => void;
+  cidades?: string[]; // se não-vazio, exibe o campo cidade
 }
 
 const TIPOS_LANCAMENTO: { valor: TipoLancamentoExtendido; rotulo: string }[] = [
@@ -21,7 +22,7 @@ const FREQUENCIAS: { valor: Frequencia; rotulo: string }[] = [
   { valor: "anual",   rotulo: "Anual"   },
 ];
 
-export default function NovoLancamento({ onAdicionado }: Props) {
+export default function NovoLancamento({ onAdicionado, cidades = [] }: Props) {
   const [tipoLancamento, setTipoLancamento] = useState<TipoLancamentoExtendido>("avulso");
   const [tipo, setTipo] = useState<TipoLancamento>("receita");
   const [descricao, setDescricao] = useState("");
@@ -55,6 +56,7 @@ export default function NovoLancamento({ onAdicionado }: Props) {
   const [valorTotal, setValorTotal] = useState("");
   const [dataPrimeira, setDataPrimeira] = useState(hojeISO());
 
+  const [cidade, setCidade] = useState<string>("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -98,6 +100,7 @@ export default function NovoLancamento({ onAdicionado }: Props) {
       descricao: descricao.trim(),
       tipo,
       categoria,
+      ...(cidades.length > 0 && cidade ? { cidade } : {}),
     };
 
     if (tipoLancamento === "avulso") {
@@ -148,7 +151,7 @@ export default function NovoLancamento({ onAdicionado }: Props) {
         throw new Error(j.erro ?? "Falha ao salvar");
       }
       // Reset
-      setDescricao(""); setValor(""); setValorParcela(""); setValorTotal("");
+      setDescricao(""); setValor(""); setValorParcela(""); setValorTotal(""); setCidade("");
       setData(hojeISO()); setDataInicio(hojeISO()); setDataFim(""); setDataPrimeira(hojeISO());
       setTotalParcelas("12");
       onAdicionado?.();
@@ -230,6 +233,16 @@ export default function NovoLancamento({ onAdicionado }: Props) {
             {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </label>
+
+        {cidades.length > 0 && (
+          <label className="block">
+            <span className={labelCls}>Cidade</span>
+            <select value={cidade} onChange={(e) => setCidade(e.target.value)} className={inputCls}>
+              <option value="">— Selecionar —</option>
+              {cidades.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+        )}
       </div>
 
       {/* ── AVULSO ── */}

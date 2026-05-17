@@ -33,6 +33,7 @@ export interface Lancamento {
   tipo: TipoLancamento;
   categoria: string;
   data: string;
+  cidade: string | null;
   tipoLancamento: TipoLancamentoExtendido;
   parcelaNum: number | null;
   parcelaTotal: number | null;
@@ -86,6 +87,7 @@ function toRow(row: Record<string, unknown>): Lancamento {
     tipo:            row.tipo as TipoLancamento,
     categoria:       row.categoria as string,
     data:            row.data as string,
+    cidade:          (row.cidade as string) ?? null,
     tipoLancamento:  ((row.tipo_lancamento as string) ?? "avulso") as TipoLancamentoExtendido,
     parcelaNum:      row.parcela_num != null ? Number(row.parcela_num) : null,
     parcelaTotal:    row.parcela_total != null ? Number(row.parcela_total) : null,
@@ -218,6 +220,7 @@ export async function garantirTabelas() {
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS parcela_total INT`,
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS cancelado BOOLEAN NOT NULL DEFAULT FALSE`,
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS criado_por_id TEXT`,
+    sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS cidade TEXT`,
   ]);
 
   // Seed: usuários iniciais
@@ -257,6 +260,15 @@ export async function garantirTabelas() {
     sql`INSERT INTO configuracoes (chave, valor) VALUES ('nome_app', 'RANKEN Financeiro') ON CONFLICT (chave) DO NOTHING`,
     sql`INSERT INTO configuracoes (chave, valor) VALUES ('moeda', 'R$') ON CONFLICT (chave) DO NOTHING`,
     sql`INSERT INTO configuracoes (chave, valor) VALUES ('formato_data', 'dd/mm/aaaa') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_metas', 'false') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('meta_anual', '300000') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_equilibrio', 'false') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('custo_fixo_mensal', '20000') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_cidade', 'false') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('cidades', 'Maringá,Londrina,Curitiba,Geral') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_pdf', 'false') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_alertas', 'false') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('alertas_limites', '{}') ON CONFLICT (chave) DO NOTHING`,
   ]);
 }
 
@@ -325,16 +337,18 @@ export async function lerCriadorGrupo(grupoId: string): Promise<string | null> {
 // ─── Criação de lançamentos ───────────────────────────────────────────────────
 
 export async function adicionarAvulso(
-  input: Omit<Lancamento, "id" | "grupoId" | "tipoLancamento" | "parcelaNum" | "parcelaTotal" | "cancelado" | "criadoEm" | "criadoPorId" | "criadoPorNome">,
+  input: Omit<Lancamento, "id" | "grupoId" | "cidade" | "tipoLancamento" | "parcelaNum" | "parcelaTotal" | "cancelado" | "criadoEm" | "criadoPorId" | "criadoPorNome">,
   criadoPorId?: string | null,
+  cidade?: string | null,
 ): Promise<Lancamento> {
   await garantirTabelas();
   const sql = db();
   const id = randomUUID();
   const uid = criadoPorId ?? null;
+  const cid = cidade ?? null;
   const [row] = await sql`
-    INSERT INTO lancamentos (id, grupo_id, descricao, valor, tipo, categoria, data, tipo_lancamento, criado_por_id)
-    VALUES (${id}, NULL, ${input.descricao}, ${input.valor}, ${input.tipo}, ${input.categoria}, ${input.data}, 'avulso', ${uid})
+    INSERT INTO lancamentos (id, grupo_id, descricao, valor, tipo, categoria, data, tipo_lancamento, criado_por_id, cidade)
+    VALUES (${id}, NULL, ${input.descricao}, ${input.valor}, ${input.tipo}, ${input.categoria}, ${input.data}, 'avulso', ${uid}, ${cid})
     RETURNING *
   `;
   return { ...toRow(row), criadoPorNome: null };
@@ -348,6 +362,7 @@ export interface InputRecorrente {
   frequencia: Frequencia;
   dataInicio: string;
   dataFim?: string | null;
+  cidade?: string | null;
 }
 
 export async function adicionarRecorrente(
@@ -358,6 +373,7 @@ export async function adicionarRecorrente(
   const sql = db();
   const grupoId = randomUUID();
   const uid = criadoPorId ?? null;
+  const cid = input.cidade ?? null;
 
   await sql`
     INSERT INTO grupos_lancamento
@@ -371,9 +387,9 @@ export async function adicionarRecorrente(
   for (const data of datas) {
     const id = randomUUID();
     await sql`
-      INSERT INTO lancamentos (id, grupo_id, descricao, valor, tipo, categoria, data, tipo_lancamento, criado_por_id)
+      INSERT INTO lancamentos (id, grupo_id, descricao, valor, tipo, categoria, data, tipo_lancamento, criado_por_id, cidade)
       VALUES (${id}, ${grupoId}, ${input.descricao}, ${input.valor}, ${input.tipo},
-              ${input.categoria}, ${data}, 'recorrente', ${uid})
+              ${input.categoria}, ${data}, 'recorrente', ${uid}, ${cid})
     `;
   }
 
@@ -388,6 +404,7 @@ export interface InputParcelado {
   categoria: string;
   totalParcelas: number;
   dataPrimeira: string;
+  cidade?: string | null;
 }
 
 export async function adicionarParcelado(
@@ -398,6 +415,7 @@ export async function adicionarParcelado(
   const sql = db();
   const grupoId = randomUUID();
   const uid = criadoPorId ?? null;
+  const cid = input.cidade ?? null;
 
   await sql`
     INSERT INTO grupos_lancamento
@@ -413,10 +431,10 @@ export async function adicionarParcelado(
     const label = `${input.descricao} (${i + 1}/${input.totalParcelas})`;
     await sql`
       INSERT INTO lancamentos
-        (id, grupo_id, descricao, valor, tipo, categoria, data, tipo_lancamento, parcela_num, parcela_total, criado_por_id)
+        (id, grupo_id, descricao, valor, tipo, categoria, data, tipo_lancamento, parcela_num, parcela_total, criado_por_id, cidade)
       VALUES
         (${id}, ${grupoId}, ${label}, ${input.valorParcela}, ${input.tipo},
-         ${input.categoria}, ${datas[i]}, 'parcelado', ${i + 1}, ${input.totalParcelas}, ${uid})
+         ${input.categoria}, ${datas[i]}, 'parcelado', ${i + 1}, ${input.totalParcelas}, ${uid}, ${cid})
     `;
   }
 
