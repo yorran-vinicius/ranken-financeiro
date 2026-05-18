@@ -387,7 +387,7 @@ export default function DashboardPage() {
       {breakdownCidade.length > 0 && (
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-marca-texto-suave mb-2">Resumo por cidade</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {breakdownCidade.map(({ cid, r, d }) => (
               <button key={cid} type="button" onClick={() => setCidadeSelecionada(cid)}
                 className="bg-white border border-marca-borda rounded-xl p-3.5 text-left hover:border-marca-preto transition">

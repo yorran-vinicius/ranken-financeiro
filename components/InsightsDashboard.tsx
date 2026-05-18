@@ -90,15 +90,15 @@ export default function InsightsDashboard({
   return (
     <div className="flex flex-col gap-3">
       {/* Indicador de saúde financeira */}
-      <div className="bg-white border border-marca-borda rounded-2xl px-5 py-4 flex items-center gap-4">
-        <span className={`w-3 h-3 rounded-full flex-shrink-0 ${saudeCirculo}`} />
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+      <div className="bg-white border border-marca-borda rounded-2xl px-5 py-4 flex items-start gap-2">
+        <span className={`w-3 h-3 rounded-full shrink-0 mt-[3px] ${saudeCirculo}`} />
+        <div className="flex-1 min-w-0 text-sm">
           <span className="font-semibold text-marca-texto">{saudeTexto}</span>
           {(fraseReceita || faltaCusto) && (
-            <span className="text-marca-texto-suave">
+            <p className="text-marca-texto-suave mt-0.5 leading-snug">
               {fraseReceita}
               {faltaCusto}
-            </span>
+            </p>
           )}
         </div>
       </div>
