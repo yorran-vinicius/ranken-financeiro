@@ -55,15 +55,15 @@ export default function CardsResumo({
       : undefined;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <div className="bg-white border border-marca-borda rounded-2xl p-5">
-        <p className="text-xs uppercase tracking-wide text-marca-texto-suave font-medium">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-4">
+      <div className="bg-white border border-marca-borda rounded-2xl p-3 md:p-5">
+        <p className="text-xs font-semibold tracking-wider uppercase text-marca-texto-suave">
           Receitas
         </p>
-        <p className="mt-2 text-2xl md:text-3xl font-bold text-receita">
+        <p className="mt-1.5 md:mt-2 text-2xl md:text-3xl font-bold text-receita">
           {formatarBRL(totalReceitas)}
         </p>
-        <div className="mt-1 min-h-[1.25rem]">
+        <div className="mt-1">
           <VariacaoBadge
             atual={totalReceitas}
             anterior={receitasAnt}
@@ -73,14 +73,14 @@ export default function CardsResumo({
         </div>
       </div>
 
-      <div className="bg-white border border-marca-borda rounded-2xl p-5">
-        <p className="text-xs uppercase tracking-wide text-marca-texto-suave font-medium">
+      <div className="bg-white border border-marca-borda rounded-2xl p-3 md:p-5">
+        <p className="text-xs font-semibold tracking-wider uppercase text-marca-texto-suave">
           Despesas
         </p>
-        <p className="mt-2 text-2xl md:text-3xl font-bold text-despesa">
+        <p className="mt-1.5 md:mt-2 text-2xl md:text-3xl font-bold text-despesa">
           {formatarBRL(totalDespesas)}
         </p>
-        <div className="mt-1 min-h-[1.25rem]">
+        <div className="mt-1">
           <VariacaoBadge
             atual={totalDespesas}
             anterior={despesasAnt}
@@ -90,18 +90,18 @@ export default function CardsResumo({
         </div>
       </div>
 
-      <div className="bg-white border border-marca-borda rounded-2xl p-5">
-        <p className="text-xs uppercase tracking-wide text-marca-texto-suave font-medium">
+      <div className="bg-white border border-marca-borda rounded-2xl p-3 md:p-5">
+        <p className="text-xs font-semibold tracking-wider uppercase text-marca-texto-suave">
           Saldo do mês
         </p>
         <p
-          className={`mt-2 text-2xl md:text-3xl font-bold ${
+          className={`mt-1.5 md:mt-2 text-2xl md:text-3xl font-bold ${
             saldoPositivo ? "text-receita" : "text-despesa"
           }`}
         >
           {formatarBRL(saldo)}
         </p>
-        <div className="mt-1 min-h-[1.25rem]">
+        <div className="mt-1">
           <VariacaoBadge
             atual={saldo}
             anterior={saldoAnt}
