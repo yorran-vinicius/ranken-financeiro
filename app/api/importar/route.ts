@@ -70,14 +70,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ erro: `Erro na API Anthropic: ${msg}` }, { status: 502 });
   }
 
-  // 1. Remove blocos de código markdown (```json ... ``` ou ``` ... ```)
-  const textoLimpo = texto
-    .replace(/```(?:json)?[\r\n]*/gi, "")
-    .replace(/```/g, "")
+  // Remove markdown code blocks se existirem
+  const cleaned = texto
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/gi, "")
     .trim();
 
-  // 2. Extrai o array JSON (greedy — pega do primeiro [ até o último ])
-  const match = textoLimpo.match(/\[[\s\S]*\]/);
+  // Extrai o array JSON
+  const match = cleaned.match(/\[[\s\S]*\]/);
   if (!match) {
     console.log("Resposta bruta da IA (sem JSON encontrado):", texto);
     return NextResponse.json(
