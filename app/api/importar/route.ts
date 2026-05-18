@@ -69,11 +69,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ erro: `Erro na API Anthropic: ${msg}` }, { status: 502 });
   }
 
-  // Extrai o array JSON da resposta (ignora possível texto extra)
-  const match = texto.match(/\[[\s\S]*\]/);
+  // 1. Remove blocos de código markdown (```json ... ``` ou ``` ... ```)
+  const textoLimpo = texto
+    .replace(/```(?:json)?[\r\n]*/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  // 2. Extrai o array JSON (greedy — pega do primeiro [ até o último ])
+  const match = textoLimpo.match(/\[[\s\S]*\]/);
   if (!match) {
+    console.log("Resposta bruta da IA (sem JSON encontrado):", texto);
     return NextResponse.json(
-      { erro: "A IA não retornou um JSON válido.", raw: texto.slice(0, 500) },
+      { erro: "Não foi possível identificar lançamentos neste PDF. Tente com outro arquivo." },
       { status: 422 },
     );
   }
@@ -81,8 +88,14 @@ export async function POST(req: NextRequest) {
   let lancamentos: LancamentoSugerido[];
   try {
     lancamentos = JSON.parse(match[0]);
-  } catch {
-    return NextResponse.json({ erro: "Falha ao parsear JSON da IA.", raw: match[0].slice(0, 500) }, { status: 422 });
+  } catch (parseErr) {
+    console.log("Resposta bruta da IA (falha no parse):", texto);
+    console.log("Trecho extraído:", match[0].slice(0, 500));
+    console.log("Erro:", parseErr);
+    return NextResponse.json(
+      { erro: "Não foi possível identificar lançamentos neste PDF. Tente com outro arquivo." },
+      { status: 422 },
+    );
   }
 
   // Sanitiza e valida cada item
