@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CategoriaDB, Lancamento } from "@/lib/db";
 import type { TipoLancamento } from "@/lib/categorias";
+import type { Frequencia } from "@/lib/recorrencia";
 import { hojeISO } from "@/lib/format";
 
 interface Props {
@@ -14,21 +15,36 @@ interface Props {
   onSalvo: () => void;
 }
 
+const FREQUENCIAS: { valor: Frequencia; label: string }[] = [
+  { valor: "mensal", label: "Mensal" },
+  { valor: "semanal", label: "Semanal" },
+  { valor: "anual",  label: "Anual"  },
+];
+
 export default function ModalLancamento({ lancamento, editandoId, onFechar, onSalvo }: Props) {
   const isEditar = !!editandoId;
 
-  const [tipo, setTipo]         = useState<TipoLancamento>(lancamento?.tipo ?? "receita");
-  const [categoria, setCategoria] = useState(lancamento?.categoria ?? "");
-  const [descricao, setDescricao] = useState(lancamento?.descricao ?? "");
-  const [valor, setValor]       = useState(lancamento?.valor ? String(lancamento.valor).replace(".", ",") : "");
-  const [data, setData]         = useState(lancamento?.data ?? hojeISO());
-  const [notas, setNotas]       = useState(lancamento?.notas ?? "");
-  const [cidade, setCidade]     = useState(lancamento?.cidade ?? "");
+  const [tipo, setTipo]               = useState<TipoLancamento>(lancamento?.tipo ?? "receita");
+  const [tipoLancamento, setTipoLanc] = useState<"avulso" | "recorrente">(
+    (lancamento?.tipoLancamento === "recorrente" ? "recorrente" : "avulso") as "avulso" | "recorrente",
+  );
+  const [categoria, setCategoria]     = useState(lancamento?.categoria ?? "");
+  const [descricao, setDescricao]     = useState(lancamento?.descricao ?? "");
+  const [valor, setValor]             = useState(lancamento?.valor ? String(lancamento.valor).replace(".", ",") : "");
+  const [data, setData]               = useState(lancamento?.data ?? hojeISO());
+  const [notas, setNotas]             = useState(lancamento?.notas ?? "");
+  const [cidade, setCidade]           = useState(lancamento?.cidade ?? "");
 
-  const [todasCats, setTodasCats]   = useState<CategoriaDB[]>([]);
+  // Campos recorrente
+  const [frequencia, setFrequencia]   = useState<Frequencia>("mensal");
+  const [dataInicio, setDataInicio]   = useState(hojeISO());
+  const [dataFim, setDataFim]         = useState("");
+  const [custoFixo, setCustoFixo]     = useState(false);
+
+  const [todasCats, setTodasCats]     = useState<CategoriaDB[]>([]);
   const [cidadesDisp, setCidadesDisp] = useState<string[]>([]);
-  const [enviando, setEnviando]     = useState(false);
-  const [erro, setErro]             = useState<string | null>(null);
+  const [enviando, setEnviando]       = useState(false);
+  const [erro, setErro]               = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -37,7 +53,6 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
     ]).then(([cats, cfg]) => {
       const lista = Array.isArray(cats) ? cats as CategoriaDB[] : [];
       setTodasCats(lista);
-      // Preenche categoria padrão só se ainda não está preenchida
       if (!lancamento?.categoria) {
         const primeira = lista.find((c) => c.tipo === tipo && c.ativo);
         if (primeira) setCategoria(primeira.nome);
@@ -59,6 +74,8 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
     setTipo(t);
     const primeira = todasCats.find((c) => c.tipo === t && c.ativo);
     setCategoria(primeira?.nome ?? "");
+    // Custo fixo só faz sentido para despesas
+    if (t !== "despesa") setCustoFixo(false);
   }
 
   async function enviar(e: React.FormEvent) {
@@ -74,12 +91,24 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
       descricao: descricao.trim(),
       tipo,
       categoria,
-      valor: Math.round(valorNum * 100) / 100,
-      data,
-      notas: notas.trim() || null,
+      notas:  notas.trim() || null,
       cidade: cidade || null,
-      tipoLancamento: "avulso",
+      tipoLancamento,
     };
+
+    if (tipoLancamento === "avulso" || isEditar) {
+      // Modo avulso (ou edição — sempre avulso)
+      body.valor = Math.round(valorNum * 100) / 100;
+      body.data  = data;
+      body.tipoLancamento = "avulso";
+    } else {
+      // Modo recorrente
+      body.valor      = Math.round(valorNum * 100) / 100;
+      body.frequencia = frequencia;
+      body.dataInicio = dataInicio;
+      body.dataFim    = dataFim || null;
+      body.custo_fixo = tipo === "despesa" && custoFixo;
+    }
 
     setEnviando(true);
     try {
@@ -102,8 +131,10 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
     }
   }
 
-  const inp  = "mt-1 w-full px-3 py-3 min-h-[48px] rounded-lg border border-marca-borda bg-white focus:outline-none focus:ring-2 focus:ring-marca-preto text-sm";
-  const lbl  = "text-xs font-medium text-marca-texto-suave";
+  const inp = "mt-1 w-full px-3 py-3 min-h-[48px] rounded-lg border border-marca-borda bg-white focus:outline-none focus:ring-2 focus:ring-marca-preto text-sm";
+  const lbl = "text-xs font-medium text-marca-texto-suave";
+
+  const mostrarRecorrente = !isEditar && tipoLancamento === "recorrente";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
@@ -129,7 +160,7 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
           </button>
         </div>
 
-        {/* Tipo */}
+        {/* Tipo (receita / despesa) */}
         <div className="grid grid-cols-2 gap-2">
           {(["receita", "despesa"] as TipoLancamento[]).map((t) => (
             <button key={t} type="button" onClick={() => trocarTipo(t)}
@@ -144,6 +175,22 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
             </button>
           ))}
         </div>
+
+        {/* Tipo de lançamento (avulso / recorrente) — oculto no modo editar */}
+        {!isEditar && (
+          <div className="flex gap-1.5">
+            {(["avulso", "recorrente"] as const).map((tl) => (
+              <button key={tl} type="button" onClick={() => setTipoLanc(tl)}
+                className={`flex-1 py-2 rounded-lg text-xs font-medium border transition ${
+                  tipoLancamento === tl
+                    ? "bg-marca-preto text-white border-marca-preto"
+                    : "bg-white text-marca-texto-suave border-marca-borda hover:bg-marca-fundo"
+                }`}>
+                {tl === "avulso" ? "Avulso" : "Recorrente"}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Categoria */}
         <label className="block">
@@ -160,18 +207,74 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
             placeholder="Ex: Mensalidade de Maio" className={inp} required />
         </label>
 
-        {/* Valor + Data */}
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className={lbl}>Valor (R$)</span>
-            <input type="text" inputMode="decimal" value={valor}
-              onChange={(e) => setValor(e.target.value)} placeholder="0,00" className={inp} required />
-          </label>
-          <label className="block">
-            <span className={lbl}>Data</span>
-            <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inp} />
-          </label>
-        </div>
+        {/* Campos Avulso: Valor + Data */}
+        {!mostrarRecorrente && (
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className={lbl}>Valor (R$)</span>
+              <input type="text" inputMode="decimal" value={valor}
+                onChange={(e) => setValor(e.target.value)} placeholder="0,00" className={inp} required />
+            </label>
+            <label className="block">
+              <span className={lbl}>Data</span>
+              <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inp} />
+            </label>
+          </div>
+        )}
+
+        {/* Campos Recorrente */}
+        {mostrarRecorrente && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={lbl}>Valor (R$)</span>
+                <input type="text" inputMode="decimal" value={valor}
+                  onChange={(e) => setValor(e.target.value)} placeholder="0,00" className={inp} required />
+              </label>
+              <label className="block">
+                <span className={lbl}>Frequência</span>
+                <select value={frequencia} onChange={(e) => setFrequencia(e.target.value as Frequencia)} className={inp}>
+                  {FREQUENCIAS.map((f) => <option key={f.valor} value={f.valor}>{f.label}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={lbl}>Data início</span>
+                <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className={inp} required />
+              </label>
+              <label className="block">
+                <span className={lbl}>Data fim <span className="font-normal">(opcional)</span></span>
+                <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className={inp} />
+              </label>
+            </div>
+
+            {/* Toggle custo fixo — apenas para despesas recorrentes */}
+            {tipo === "despesa" && (
+              <div className="flex items-center justify-between px-4 py-3 bg-marca-fundo rounded-xl border border-marca-borda">
+                <div>
+                  <p className="text-sm font-medium text-marca-texto">Custo fixo mensal</p>
+                  <p className="text-xs text-marca-texto-suave mt-0.5">
+                    Inclui no cálculo do ponto de equilíbrio
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCustoFixo((v) => !v)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                    custoFixo ? "bg-marca-preto" : "bg-neutral-200"
+                  }`}
+                  aria-checked={custoFixo}
+                  role="switch"
+                >
+                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                    custoFixo ? "translate-x-5" : "translate-x-0"
+                  }`} />
+                </button>
+              </div>
+            )}
+          </>
+        )}
 
         {/* Cidade */}
         {cidadesDisp.length > 0 && (

@@ -119,8 +119,7 @@ export default function DashboardPage() {
   const funcPdf        = config.func_pdf        === "true";
   const funcAlertas    = config.func_alertas    === "true";
 
-  const metaAnual  = parseFloat(config.meta_anual        ?? "300000") || 300000;
-  const custoFixo  = parseFloat(config.custo_fixo_mensal ?? "20000")  || 20000;
+  const metaAnual  = parseFloat(config.meta_anual ?? "300000") || 300000;
   const nomeApp    = config.nome_app ?? "RANKEN Financeiro";
 
   const cidadesDisp = useMemo(() => {
@@ -138,6 +137,17 @@ export default function DashboardPage() {
     if (!funcCidade || cidadeSelecionada === "todas") return lancamentosMes;
     return lancamentosMes.filter((l) => (l.cidade ?? "Geral") === cidadeSelecionada);
   }, [funcCidade, cidadeSelecionada, lancamentosMes]);
+
+  // Custo fixo real: soma lançamentos recorrentes marcados como custo fixo;
+  // se nenhum cadastrado, usa o valor legacy de configuracoes (retrocompat.)
+  const custoFixo = useMemo(() => {
+    const doCadastro = lancamentosVisiveis
+      .filter((l) => l.custoFixo && l.tipo === "despesa")
+      .reduce((s, l) => s + l.valor, 0);
+    return doCadastro > 0
+      ? doCadastro
+      : parseFloat(config.custo_fixo_mensal ?? "0") || 0;
+  }, [lancamentosVisiveis, config.custo_fixo_mensal]);
 
   // ── Totais do mês ─────────────────────────────────────────────────────────
   const { totalReceitas, totalDespesas, receitasFixas, despesasFixas, receitasAvulsas, despesasAvulsas } =
@@ -360,7 +370,7 @@ export default function DashboardPage() {
             />
           </div>
           <div className="lg:col-span-2">
-            <PontoEquilibrio lancamentos={lancamentosVisiveis} custoFixo={custoFixo} />
+            <PontoEquilibrio lancamentos={lancamentosVisiveis} />
           </div>
         </div>
       ) : (

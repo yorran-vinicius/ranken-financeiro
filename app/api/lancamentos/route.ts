@@ -9,6 +9,7 @@ import {
   filtrarPorCategoria,
   lerLancamentos,
   listarCategorias,
+  type InputRecorrente,
 } from "@/lib/db";
 import type { TipoLancamento } from "@/lib/categorias";
 import type { Frequencia } from "@/lib/recorrencia";
@@ -99,18 +100,17 @@ export async function POST(req: NextRequest) {
     if (b.dataFim != null && (typeof b.dataFim !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.dataFim)))
       return NextResponse.json({ erro: "Data de término inválida" }, { status: 400 });
 
-    const grupo = await adicionarRecorrente(
-      {
-        descricao: descricao.trim(),
-        valor: Math.round(valorNum * 100) / 100,
-        tipo, categoria,
-        frequencia: b.frequencia as Frequencia,
-        dataInicio: b.dataInicio,
-        dataFim: (b.dataFim as string) ?? null,
-        cidade,
-      },
-      criadoPorId,
-    );
+    const inputRec: InputRecorrente = {
+      descricao: descricao.trim(),
+      valor: Math.round(valorNum * 100) / 100,
+      tipo, categoria,
+      frequencia: b.frequencia as Frequencia,
+      dataInicio: b.dataInicio as string,
+      dataFim: (b.dataFim as string) ?? null,
+      cidade,
+      custoFixo: b.custo_fixo === true,
+    };
+    const grupo = await adicionarRecorrente(inputRec, criadoPorId);
     return NextResponse.json(grupo, { status: 201 });
   }
 

@@ -22,6 +22,7 @@ export interface GrupoLancamento {
   dataFim?: string | null;
   totalParcelas?: number;
   valorTotal?: number;
+  custoFixo: boolean;
   criadoEm: string;
 }
 
@@ -36,6 +37,7 @@ export interface Lancamento {
   cidade: string | null;
   notas: string | null;
   favorito: boolean;
+  custoFixo: boolean;
   tipoLancamento: TipoLancamentoExtendido;
   parcelaNum: number | null;
   parcelaTotal: number | null;
@@ -92,6 +94,7 @@ function toRow(row: Record<string, unknown>): Lancamento {
     cidade:          (row.cidade as string) ?? null,
     notas:           (row.notas as string) ?? null,
     favorito:        Boolean(row.favorito),
+    custoFixo:       Boolean(row.custo_fixo_grupo),
     tipoLancamento:  ((row.tipo_lancamento as string) ?? "avulso") as TipoLancamentoExtendido,
     parcelaNum:      row.parcela_num != null ? Number(row.parcela_num) : null,
     parcelaTotal:    row.parcela_total != null ? Number(row.parcela_total) : null,
@@ -115,6 +118,7 @@ function toGrupo(row: Record<string, unknown>): GrupoLancamento {
     dataFim:        (row.data_fim as string) ?? null,
     totalParcelas:  row.total_parcelas != null ? Number(row.total_parcelas) : undefined,
     valorTotal:     row.valor_total != null ? Number(row.valor_total) : undefined,
+    custoFixo:      Boolean(row.custo_fixo),
     criadoEm:       tsISO(row.criado_em),
   };
 }
@@ -231,6 +235,8 @@ export async function garantirTabelas() {
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS cidade TEXT`,
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS favorito BOOLEAN NOT NULL DEFAULT FALSE`,
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS notas TEXT`,
+    // Custo fixo automático
+    sql`ALTER TABLE grupos_lancamento ADD COLUMN IF NOT EXISTS custo_fixo BOOLEAN NOT NULL DEFAULT FALSE`,
   ]);
 
   // Fix 2 — índices para queries frequentes
@@ -310,9 +316,11 @@ export async function lerLancamentos(
   let rows;
   if (criadoPorId && prefixo) {
     rows = await sql`
-      SELECT l.*, u.nome AS criado_por_nome
+      SELECT l.*, u.nome AS criado_por_nome,
+             COALESCE(g.custo_fixo, FALSE) AS custo_fixo_grupo
       FROM lancamentos l
       LEFT JOIN usuarios u ON l.criado_por_id = u.id
+      LEFT JOIN grupos_lancamento g ON l.grupo_id = g.id
       WHERE l.cancelado = FALSE
         AND l.criado_por_id = ${criadoPorId}
         AND l.data LIKE ${prefixo}
@@ -320,25 +328,31 @@ export async function lerLancamentos(
     `;
   } else if (criadoPorId) {
     rows = await sql`
-      SELECT l.*, u.nome AS criado_por_nome
+      SELECT l.*, u.nome AS criado_por_nome,
+             COALESCE(g.custo_fixo, FALSE) AS custo_fixo_grupo
       FROM lancamentos l
       LEFT JOIN usuarios u ON l.criado_por_id = u.id
+      LEFT JOIN grupos_lancamento g ON l.grupo_id = g.id
       WHERE l.cancelado = FALSE AND l.criado_por_id = ${criadoPorId}
       ORDER BY l.data DESC, l.criado_em DESC
     `;
   } else if (prefixo) {
     rows = await sql`
-      SELECT l.*, u.nome AS criado_por_nome
+      SELECT l.*, u.nome AS criado_por_nome,
+             COALESCE(g.custo_fixo, FALSE) AS custo_fixo_grupo
       FROM lancamentos l
       LEFT JOIN usuarios u ON l.criado_por_id = u.id
+      LEFT JOIN grupos_lancamento g ON l.grupo_id = g.id
       WHERE l.cancelado = FALSE AND l.data LIKE ${prefixo}
       ORDER BY l.data DESC, l.criado_em DESC
     `;
   } else {
     rows = await sql`
-      SELECT l.*, u.nome AS criado_por_nome
+      SELECT l.*, u.nome AS criado_por_nome,
+             COALESCE(g.custo_fixo, FALSE) AS custo_fixo_grupo
       FROM lancamentos l
       LEFT JOIN usuarios u ON l.criado_por_id = u.id
+      LEFT JOIN grupos_lancamento g ON l.grupo_id = g.id
       WHERE l.cancelado = FALSE
       ORDER BY l.data DESC, l.criado_em DESC
     `;
@@ -389,7 +403,7 @@ export async function lerCriadorGrupo(grupoId: string): Promise<string | null> {
 // ─── Criação de lançamentos ───────────────────────────────────────────────────
 
 export async function adicionarAvulso(
-  input: Omit<Lancamento, "id" | "grupoId" | "cidade" | "notas" | "favorito" | "tipoLancamento" | "parcelaNum" | "parcelaTotal" | "cancelado" | "criadoEm" | "criadoPorId" | "criadoPorNome">,
+  input: Omit<Lancamento, "id" | "grupoId" | "cidade" | "notas" | "favorito" | "custoFixo" | "tipoLancamento" | "parcelaNum" | "parcelaTotal" | "cancelado" | "criadoEm" | "criadoPorId" | "criadoPorNome">,
   criadoPorId?: string | null,
   cidade?: string | null,
 ): Promise<Lancamento> {
@@ -415,6 +429,7 @@ export interface InputRecorrente {
   dataInicio: string;
   dataFim?: string | null;
   cidade?: string | null;
+  custoFixo?: boolean;
 }
 
 export async function adicionarRecorrente(
@@ -427,12 +442,13 @@ export async function adicionarRecorrente(
   const uid = criadoPorId ?? null;
   const cid = input.cidade ?? null;
 
+  const custFixo = input.custoFixo === true;
   await sql`
     INSERT INTO grupos_lancamento
-      (id, tipo, descricao, valor_base, tipo_financeiro, categoria, frequencia, data_inicio, data_fim)
+      (id, tipo, descricao, valor_base, tipo_financeiro, categoria, frequencia, data_inicio, data_fim, custo_fixo)
     VALUES
       (${grupoId}, 'recorrente', ${input.descricao}, ${input.valor}, ${input.tipo},
-       ${input.categoria}, ${input.frequencia}, ${input.dataInicio}, ${input.dataFim ?? null})
+       ${input.categoria}, ${input.frequencia}, ${input.dataInicio}, ${input.dataFim ?? null}, ${custFixo})
   `;
 
   const datas = gerarDatasRecorrente(input.dataInicio, input.frequencia, input.dataFim);
@@ -717,4 +733,18 @@ export async function salvarConfiguracao(chave: string, valor: string): Promise<
     INSERT INTO configuracoes (chave, valor) VALUES (${chave}, ${valor})
     ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor
   `;
+}
+
+// ─── Custos Fixos ─────────────────────────────────────────────────────────────
+
+/** Retorna grupos recorrentes marcados como custo fixo. */
+export async function listarCustosFixos(): Promise<GrupoLancamento[]> {
+  await garantirTabelas();
+  const sql = db();
+  const rows = await sql`
+    SELECT * FROM grupos_lancamento
+    WHERE tipo = 'recorrente' AND custo_fixo = TRUE
+    ORDER BY criado_em ASC
+  `;
+  return rows.map((r) => toGrupo(r as Record<string, unknown>));
 }

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
-import type { Usuario, CategoriaDB } from "@/lib/db";
+import type { Usuario, CategoriaDB, GrupoLancamento } from "@/lib/db";
+import { formatarBRL } from "@/lib/format";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -516,7 +517,7 @@ function AbaGeral() {
   const [funcMetas, setFuncMetas]             = useState(false);
   const [metaAnual, setMetaAnual]             = useState("300000");
   const [funcEquilibrio, setFuncEquilibrio]   = useState(false);
-  const [custoFixo, setCustoFixo]             = useState("20000");
+  const [custosFixos, setCustosFixos]         = useState<GrupoLancamento[]>([]);
   const [funcCidade, setFuncCidade]           = useState(false);
   const [cidades, setCidades]                 = useState("Maringá,Londrina,Curitiba,Geral");
   const [funcPdf, setFuncPdf]                 = useState(false);
@@ -533,14 +534,14 @@ function AbaGeral() {
     Promise.all([
       fetch("/api/configuracoes/geral").then((r) => r.json()),
       fetch("/api/configuracoes/categorias?tipo=despesa").then((r) => r.json()),
-    ]).then(([dados, cats]) => {
+      fetch("/api/grupos").then((r) => r.json()),
+    ]).then(([dados, cats, grupos]) => {
       setNomeApp(dados.nome_app     ?? "RANKEN Financeiro");
       setMoeda(dados.moeda          ?? "R$");
       setFormatoData(dados.formato_data ?? "dd/mm/aaaa");
       setFuncMetas(dados.func_metas === "true");
       setMetaAnual(dados.meta_anual ?? "300000");
       setFuncEquilibrio(dados.func_equilibrio === "true");
-      setCustoFixo(dados.custo_fixo_mensal ?? "20000");
       setFuncCidade(dados.func_cidade === "true");
       setCidades(dados.cidades ?? "Maringá,Londrina,Curitiba,Geral");
       setFuncPdf(dados.func_pdf === "true");
@@ -552,6 +553,7 @@ function AbaGeral() {
         setAlertasLimites(str);
       } catch { setAlertasLimites({}); }
       setCatsDespesa(Array.isArray(cats) ? cats.filter((c: CategoriaDB) => c.ativo) : []);
+      setCustosFixos(Array.isArray(grupos) ? grupos as GrupoLancamento[] : []);
       setCarregando(false);
     });
   }, []);
@@ -568,15 +570,14 @@ function AbaGeral() {
 
     const body = {
       nome_app: nomeApp, moeda, formato_data: formatoData,
-      func_metas:         String(funcMetas),
-      meta_anual:         metaAnual,
-      func_equilibrio:    String(funcEquilibrio),
-      custo_fixo_mensal:  custoFixo,
-      func_cidade:        String(funcCidade),
+      func_metas:      String(funcMetas),
+      meta_anual:      metaAnual,
+      func_equilibrio: String(funcEquilibrio),
+      func_cidade:     String(funcCidade),
       cidades,
-      func_pdf:           String(funcPdf),
-      func_alertas:       String(funcAlertas),
-      alertas_limites:    JSON.stringify(alertasJSON),
+      func_pdf:        String(funcPdf),
+      func_alertas:    String(funcAlertas),
+      alertas_limites: JSON.stringify(alertasJSON),
     };
 
     const resp = await fetch("/api/configuracoes/geral", {
@@ -649,15 +650,33 @@ function AbaGeral() {
         {/* 2. Ponto de Equilíbrio */}
         <FeatureCard
           label="Ponto de Equilíbrio"
-          desc="Mostra se a receita do mês cobre o custo fixo mensal configurado."
+          desc="Mostra se a receita do mês cobre a soma dos custos fixos recorrentes cadastrados."
           checked={funcEquilibrio}
           onChange={setFuncEquilibrio}
         >
-          <label className="block">
-            <span className={labelCls}>Custo fixo mensal (R$)</span>
-            <input type="number" min="0" step="100" value={custoFixo}
-              onChange={(e) => setCustoFixo(e.target.value)} className={inputCls} />
-          </label>
+          <p className="text-xs text-marca-texto-suave">
+            Despesas recorrentes marcadas como <span className="font-medium text-marca-texto">custo fixo mensal</span>:
+          </p>
+          {custosFixos.length === 0 ? (
+            <p className="text-xs text-marca-texto-suave italic">
+              Nenhum custo fixo cadastrado. Crie uma despesa recorrente e marque como custo fixo.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {custosFixos.map((g) => (
+                <div key={g.id} className="flex items-center justify-between text-sm py-1 border-b border-marca-borda/50 last:border-0">
+                  <span className="text-marca-texto truncate">{g.descricao}</span>
+                  <span className="font-semibold text-despesa shrink-0 ml-2">{formatarBRL(g.valorBase)}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between text-sm pt-1 font-semibold">
+                <span className="text-marca-texto-suave">Total mensal</span>
+                <span className="text-marca-texto">
+                  {formatarBRL(custosFixos.reduce((s, g) => s + g.valorBase, 0))}
+                </span>
+              </div>
+            </div>
+          )}
         </FeatureCard>
 
         {/* 3. Filtro por Cidade */}

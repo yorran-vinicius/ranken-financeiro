@@ -91,6 +91,8 @@ async function migrar() {
     "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS cidade TEXT",
     "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS favorito BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS notas TEXT",
+    // Custo fixo automático: marca grupos recorrentes como custo fixo
+    "ALTER TABLE grupos_lancamento ADD COLUMN IF NOT EXISTS custo_fixo BOOLEAN NOT NULL DEFAULT FALSE",
   ];
   for (const q of alteracoes) {
     try { await sql.unsafe(q); } catch { /* coluna já existe */ }
