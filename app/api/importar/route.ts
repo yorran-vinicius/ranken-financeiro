@@ -6,14 +6,9 @@ export const dynamic = "force-dynamic";
 // PDF analysis pode ser lento — amplia timeout para 120s
 export const maxDuration = 120;
 
-const PROMPT = `Analise este PDF e extraia todos os lançamentos financeiros. Para cada um retorne JSON com:
-- descricao (string, obrigatório)
-- valor (número positivo, obrigatório)
-- tipo ("entrada" ou "saida", obrigatório)
-- categoria_sugerida (uma de: Mensalidades, Patrocínios, Loja, Confraternização, Time, Marketing, Tecnologia, Operacional, Outros)
-- data (YYYY-MM-DD se encontrada, senão null)
-
-Retorne APENAS o JSON array sem texto adicional, markdown ou blocos de código.`;
+const PROMPT = `Analise este extrato bancário e extraia TODOS os lançamentos. Ignore saldos do dia e saldo anterior. Para cada transação retorne um array JSON com objetos contendo:
+descricao (string), valor (número positivo), tipo ("entrada" ou "saida"), categoria_sugerida (uma de: Mensalidades, Patrocínios, Loja, Confraternização, Time, Marketing, Tecnologia, Operacional, Outros), data (formato YYYY-MM-DD).
+Retorne APENAS o array JSON, sem texto.`;
 
 export interface LancamentoSugerido {
   descricao: string;
@@ -44,26 +39,32 @@ export async function POST(req: NextRequest) {
 
   let texto: string;
   try {
-    const conteudo: Anthropic.Messages.ContentBlockParam[] = [
-      {
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: "application/pdf" as const,
-          data: pdf,
-        },
-        title: nome ?? "Documento",
-      } as Anthropic.Messages.DocumentBlockParam,
-      { type: "text", text: PROMPT },
-    ];
-
     const msg = await client.messages.create({
-      model: "claude-sonnet-4-5",
+      model: "claude-opus-4-5",
       max_tokens: 4096,
-      messages: [{ role: "user", content: conteudo }],
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf" as const,
+                data: pdf,
+              },
+            } as Anthropic.Messages.DocumentBlockParam,
+            {
+              type: "text",
+              text: PROMPT,
+            },
+          ] as Anthropic.Messages.ContentBlockParam[],
+        },
+      ],
     });
     const bloco = msg.content.find((c) => c.type === "text");
     texto = bloco && bloco.type === "text" ? bloco.text : "";
+    console.log("Resposta bruta da IA:", texto);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ erro: `Erro na API Anthropic: ${msg}` }, { status: 502 });
