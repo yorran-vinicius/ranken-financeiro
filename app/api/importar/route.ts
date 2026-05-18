@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
 
   const client = new Anthropic({ apiKey });
 
-  let texto: string;
+  // ── Chama a API Anthropic ─────────────────────────────────────────────────
+  let msgContent: Anthropic.Messages.ContentBlock[];
   try {
     const msg = await client.messages.create({
       model: "claude-opus-4-5",
@@ -62,36 +63,46 @@ export async function POST(req: NextRequest) {
         },
       ],
     });
-    const bloco = msg.content.find((c) => c.type === "text");
-    texto = bloco && bloco.type === "text" ? bloco.text : "";
-    console.log("Resposta bruta da IA:", texto);
+    msgContent = msg.content;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ erro: `Erro na API Anthropic: ${msg}` }, { status: 502 });
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ erro: `Erro na API Anthropic: ${errMsg}` }, { status: 502 });
   }
 
-  // Remove markdown code blocks se existirem
-  const cleaned = texto
-    .replace(/```json\s*/gi, "")
-    .replace(/```\s*/gi, "")
+  // ── Extrai texto bruto (todos os blocos de texto concatenados) ───────────
+  const rawText = msgContent
+    .filter((b) => b.type === "text")
+    .map((b) => (b as Anthropic.Messages.TextBlock).text)
+    .join("");
+
+  console.log("RAW:", rawText.substring(0, 200));
+
+  // ── Remove markdown code blocks se existirem ─────────────────────────────
+  const cleaned = rawText
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
     .trim();
 
-  // Extrai o array JSON
-  const match = cleaned.match(/\[[\s\S]*\]/);
-  if (!match) {
-    console.log("Resposta bruta da IA (sem JSON encontrado):", texto);
+  // ── Localiza o array JSON pelos delimitadores [ e ] ──────────────────────
+  const startIndex = cleaned.indexOf("[");
+  const endIndex   = cleaned.lastIndexOf("]");
+
+  if (startIndex === -1 || endIndex === -1) {
+    console.log("Resposta bruta da IA (sem JSON encontrado):", rawText);
     return NextResponse.json(
       { erro: "Não foi possível identificar lançamentos neste PDF. Tente com outro arquivo." },
       { status: 422 },
     );
   }
 
+  const jsonString = cleaned.substring(startIndex, endIndex + 1);
+
   let lancamentos: LancamentoSugerido[];
   try {
-    lancamentos = JSON.parse(match[0]);
+    lancamentos = JSON.parse(jsonString);
   } catch (parseErr) {
-    console.log("Resposta bruta da IA (falha no parse):", texto);
-    console.log("Trecho extraído:", match[0].slice(0, 500));
+    console.log("Resposta bruta da IA (falha no parse):", rawText);
+    console.log("Trecho extraído:", jsonString.slice(0, 500));
     console.log("Erro:", parseErr);
     return NextResponse.json(
       { erro: "Não foi possível identificar lançamentos neste PDF. Tente com outro arquivo." },
