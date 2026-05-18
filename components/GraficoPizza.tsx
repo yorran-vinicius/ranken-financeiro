@@ -35,7 +35,7 @@ export default function GraficoPizza({ lancamentos, tipo }: Props) {
     return (
       <div className="bg-white border border-marca-borda rounded-2xl p-5">
         <h3 className="text-sm font-semibold text-marca-texto mb-2">{titulo}</h3>
-        <div className="h-[180px] md:h-[300px] flex items-center justify-center text-sm text-marca-texto-suave">
+        <div className="h-[180px] md:h-[280px] flex items-center justify-center text-sm text-marca-texto-suave">
           Sem dados neste mês.
         </div>
       </div>
@@ -47,7 +47,7 @@ export default function GraficoPizza({ lancamentos, tipo }: Props) {
       <h3 className="text-sm font-semibold text-marca-texto mb-2">{titulo}</h3>
 
       {/* Gráfico — altura responsiva */}
-      <div className="h-[180px] md:h-[300px]">
+      <div className="h-[180px] md:h-[280px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
