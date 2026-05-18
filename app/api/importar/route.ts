@@ -72,6 +72,12 @@ export async function POST(req: NextRequest) {
 
   console.log("RAW:", fullText.substring(0, 300));
 
+  console.log("TIPO:", typeof fullText);
+  console.log("LEN:", fullText.length);
+  console.log("CHARS:", [...fullText.slice(0, 20)].map(c => c.charCodeAt(0)));
+  console.log("TEM [:", fullText.includes("["));
+  console.log("TEM ]:", fullText.includes("]"));
+
   const start = fullText.indexOf("[");
   const end   = fullText.lastIndexOf("]");
 
