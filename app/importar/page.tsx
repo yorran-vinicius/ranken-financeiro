@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { hojeISO } from "@/lib/format";
 import type { LancamentoSugerido } from "@/app/api/importar/route";
 
@@ -11,8 +11,8 @@ const CATS_DESPESA = ["Time", "Marketing", "Tecnologia", "Operacional", "Confrat
 // ── Item de resultado (estende sugerido com campo editável) ──────────────────
 interface ItemResultado extends LancamentoSugerido {
   _id: number;
-  categoria: string; // valor editável (cópia de categoria_sugerida)
-  dataEditada: string; // cópia editável de data
+  categoria: string;
+  dataEditada: string;
   selecionado: boolean;
 }
 
@@ -31,16 +31,6 @@ function IconDoc({ className = "w-10 h-10" }: { className?: string }) {
   );
 }
 
-// ── Converte File para base64 ─────────────────────────────────────────────────
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload  = () => resolve((reader.result as string).split(",")[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 // ── Formata valor em BRL ──────────────────────────────────────────────────────
 function fmtBRL(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -50,13 +40,27 @@ function fmtBRL(v: number) {
 
 export default function ImportarPage() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [arquivo, setArquivo]     = useState<File | null>(null);
-  const [dragging, setDragging]   = useState(false);
-  const [analisando, setAnalisando] = useState(false);
-  const [erroUpload, setErroUpload] = useState<string | null>(null);
-  const [itens, setItens]         = useState<ItemResultado[]>([]);
-  const [importando, setImportando] = useState(false);
-  const [resumo, setResumo]       = useState<{ ok: number; erro: number } | null>(null);
+  const [arquivo, setArquivo]         = useState<File | null>(null);
+  const [dragging, setDragging]       = useState(false);
+  const [carregando, setCarregando]   = useState(false);
+  const [erro, setErro]               = useState('');
+  const [lancamentos, setLancamentos] = useState<LancamentoSugerido[]>([]);
+  const [itens, setItens]             = useState<ItemResultado[]>([]);
+  const [importando, setImportando]   = useState(false);
+  const [resumo, setResumo]           = useState<{ ok: number; erro: number } | null>(null);
+
+  // ── Converte lancamentos brutos em itens editáveis ─────────────────────────
+  useEffect(() => {
+    setItens(
+      lancamentos.map((l, i) => ({
+        ...l,
+        _id: i,
+        categoria: l.categoria_sugerida,
+        dataEditada: l.data ?? hojeISO(),
+        selecionado: true,
+      }))
+    );
+  }, [lancamentos]);
 
   // ── Validação do arquivo ───────────────────────────────────────────────────
   function validar(file: File): string | null {
@@ -68,11 +72,11 @@ export default function ImportarPage() {
   }
 
   function selecionarArquivo(file: File) {
-    const erro = validar(file);
-    if (erro) { setErroUpload(erro); setArquivo(null); return; }
-    setErroUpload(null);
+    const erroVal = validar(file);
+    if (erroVal) { setErro(erroVal); setArquivo(null); return; }
+    setErro('');
     setArquivo(file);
-    setItens([]);
+    setLancamentos([]);
     setResumo(null);
   }
 
@@ -86,40 +90,43 @@ export default function ImportarPage() {
   }, []);
 
   // ── Analisar PDF ───────────────────────────────────────────────────────────
-  async function analisar() {
-    if (!arquivo) return;
-    setAnalisando(true);
-    setErroUpload(null);
+  const handleAnalisar = async () => {
+    if (!arquivo) return
+    setCarregando(true)
+    setErro('')
+
     try {
-      const base64 = await fileToBase64(arquivo);
-      const resp   = await fetch("/api/importar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pdf: base64, nome: arquivo.name }),
-      });
-      const dados = await resp.json();
-      if (!resp.ok) {
-        setErroUpload(dados.error ?? dados.erro ?? "Erro ao analisar o PDF.");
-        return;
+      // Converte PDF para base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = reader.result as string
+          // Remove o prefixo "data:application/pdf;base64,"
+          const base64Data = result.split(',')[1]
+          resolve(base64Data)
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(arquivo)
+      })
+
+      const res = await fetch('/api/importar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdfBase64: base64 })
+      })
+
+      const dados = await res.json()
+
+      if (!res.ok) {
+        setErro(dados.error || 'Erro ao analisar PDF')
+        return
       }
-      const lista: LancamentoSugerido[] = Array.isArray(dados.lancamentos) ? dados.lancamentos : [];
-      if (lista.length === 0) {
-        setErroUpload("Nenhum lançamento encontrado no documento.");
-        return;
-      }
-      setItens(
-        lista.map((l, i) => ({
-          ...l,
-          _id: i,
-          categoria: l.categoria_sugerida,
-          dataEditada: l.data ?? hojeISO(),
-          selecionado: true,
-        })),
-      );
-    } catch {
-      setErroUpload("Falha de comunicação com o servidor.");
+
+      setLancamentos(dados.lancamentos || [])
+    } catch (e: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      setErro(e.message || 'Erro inesperado')
     } finally {
-      setAnalisando(false);
+      setCarregando(false)
     }
   }
 
@@ -158,7 +165,6 @@ export default function ImportarPage() {
     }
     setImportando(false);
     setResumo({ ok, erro: erros });
-    // Remove os importados com sucesso
     const idsSel = new Set(selecionados.map((it) => it._id));
     setItens((prev) => prev.filter((it) => !idsSel.has(it._id)));
     window.dispatchEvent(new CustomEvent("ranken:lancamento-adicionado"));
@@ -219,21 +225,21 @@ export default function ImportarPage() {
         )}
       </div>
 
-      {/* ── Erro de upload ── */}
-      {erroUpload && (
+      {/* ── Erro ── */}
+      {erro && (
         <div className="bg-despesa-soft border border-despesa/20 rounded-xl px-4 py-3 text-sm text-despesa">
-          {erroUpload}
+          {erro}
         </div>
       )}
 
       {/* ── Botão Analisar ── */}
       {arquivo && itens.length === 0 && (
         <button
-          onClick={analisar}
-          disabled={analisando}
+          onClick={handleAnalisar}
+          disabled={carregando}
           className="w-full py-3 rounded-xl bg-marca-preto text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition flex items-center justify-center gap-2"
         >
-          {analisando ? (
+          {carregando ? (
             <>
               <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
