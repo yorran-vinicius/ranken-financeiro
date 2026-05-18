@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 
 const ITENS = [
   { href: "/",            rotulo: "Dashboard"    },
+  { href: "/analise",     rotulo: "Análise"      },
   { href: "/lancamentos", rotulo: "Lançamentos"  },
   { href: "/importar",    rotulo: "Importar PDF" },
 ];

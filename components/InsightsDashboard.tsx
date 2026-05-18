@@ -11,6 +11,8 @@ interface Props {
   despesasAnt: number;
   labelMesAnt: string;
   lancamentosHoje: Lancamento[];
+  /** false = oculta a "Linha Hoje". Default: true */
+  mostrarHoje?: boolean;
 }
 
 function formatarDataExtenso(dataISO: string): string {
@@ -37,6 +39,7 @@ export default function InsightsDashboard({
   despesasAnt,
   labelMesAnt,
   lancamentosHoje,
+  mostrarHoje = true,
 }: Props) {
   // ── Saúde financeira ──────────────────────────────────────────────────────
   let saudeCirculo: string;
@@ -104,7 +107,7 @@ export default function InsightsDashboard({
       </div>
 
       {/* Linha Hoje */}
-      {lancamentosHoje.length > 0 && (
+      {mostrarHoje && lancamentosHoje.length > 0 && (
         <div className="bg-white border border-marca-borda rounded-xl px-5 py-3 flex flex-wrap items-center gap-4 text-sm">
           <span className="font-medium text-marca-texto">
             Hoje, {formatarDataExtenso(hoje)}

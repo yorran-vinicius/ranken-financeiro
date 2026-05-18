@@ -25,8 +25,8 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
   const isEditar = !!editandoId;
 
   const [tipo, setTipo]               = useState<TipoLancamento>(lancamento?.tipo ?? "receita");
-  const [tipoLancamento, setTipoLanc] = useState<"avulso" | "recorrente">(
-    (lancamento?.tipoLancamento === "recorrente" ? "recorrente" : "avulso") as "avulso" | "recorrente",
+  const [tipoLancamento, setTipoLanc] = useState<"avulso" | "recorrente" | "parcelado">(
+    (lancamento?.tipoLancamento ?? "avulso") as "avulso" | "recorrente" | "parcelado",
   );
   const [categoria, setCategoria]     = useState(lancamento?.categoria ?? "");
   const [descricao, setDescricao]     = useState(lancamento?.descricao ?? "");
@@ -96,8 +96,13 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
       tipoLancamento,
     };
 
-    if (tipoLancamento === "avulso" || isEditar) {
-      // Modo avulso (ou edição — sempre avulso)
+    if (isEditar) {
+      // Modo edição — campos avulso + tipo_lancamento editável
+      body.valor           = Math.round(valorNum * 100) / 100;
+      body.data            = data;
+      body.tipoLancamento  = "avulso";      // mantém compat. com API
+      body.tipo_lancamento = tipoLancamento; // campo novo para o PATCH
+    } else if (tipoLancamento === "avulso") {
       body.valor = Math.round(valorNum * 100) / 100;
       body.data  = data;
       body.tipoLancamento = "avulso";
@@ -176,8 +181,24 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
           ))}
         </div>
 
-        {/* Tipo de lançamento (avulso / recorrente) — oculto no modo editar */}
-        {!isEditar && (
+        {/* Tipo de lançamento */}
+        {isEditar ? (
+          <div>
+            <span className={lbl}>Tipo de lançamento</span>
+            <div className="flex gap-1.5 mt-1">
+              {(["avulso", "recorrente", "parcelado"] as const).map((tl) => (
+                <button key={tl} type="button" onClick={() => setTipoLanc(tl)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium border transition capitalize ${
+                    tipoLancamento === tl
+                      ? "bg-marca-preto text-white border-marca-preto"
+                      : "bg-white text-marca-texto-suave border-marca-borda hover:bg-marca-fundo"
+                  }`}>
+                  {tl === "avulso" ? "Avulso" : tl === "recorrente" ? "Recorrente" : "Parcelado"}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
           <div className="flex gap-1.5">
             {(["avulso", "recorrente"] as const).map((tl) => (
               <button key={tl} type="button" onClick={() => setTipoLanc(tl)}

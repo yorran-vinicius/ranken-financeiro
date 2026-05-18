@@ -3,15 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import CardsResumo from "@/components/CardsResumo";
 import FiltroMes from "@/components/FiltroMes";
-import FluxoCaixa from "@/components/FluxoCaixa";
 import GraficoBarras from "@/components/GraficoBarras";
-import GraficoPizza from "@/components/GraficoPizza";
 import InsightsDashboard from "@/components/InsightsDashboard";
 import PainelMetas from "@/components/PainelMetas";
 import PontoEquilibrio from "@/components/PontoEquilibrio";
 import type { Lancamento } from "@/lib/db";
 import { exportarPDF } from "@/lib/exportarPDF";
-import { formatarBRL, hojeISO, mesAtualISO, nomeMes, rotuloMesAno } from "@/lib/format";
+import { formatarBRL, mesAtualISO, nomeMes, rotuloMesAno } from "@/lib/format";
 
 // ── Helpers de data ───────────────────────────────────────────────────────────
 function proxMes(mesAno: string): string {
@@ -22,14 +20,6 @@ function proxMes(mesAno: string): string {
 function mesAnteriorISO(mesAno: string): string {
   const [a, m] = mesAno.split("-").map(Number);
   return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, "0")}`;
-}
-
-function adicionarDias(iso: string, dias: number): string {
-  const d = new Date(iso + "T12:00:00");
-  d.setDate(d.getDate() + dias);
-  const mes = String(d.getMonth() + 1).padStart(2, "0");
-  const dia = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${mes}-${dia}`;
 }
 
 // ── Ícone de Alerta ───────────────────────────────────────────────────────────
@@ -66,36 +56,30 @@ export default function DashboardPage() {
   const [lancamentosMes, setLancamentosMes]     = useState<Lancamento[]>([]);
   const [todosLancamentos, setTodosLancamentos] = useState<Lancamento[]>([]);
   const [lancamentosAnt, setLancamentosAnt]     = useState<Lancamento[]>([]);
-  const [lancamentosProximos, setLancamentosProximos] = useState<Lancamento[]>([]);
   const [carregando, setCarregando]             = useState(true);
   const [erro, setErro]                         = useState<string | null>(null);
   const [config, setConfig]                     = useState<Record<string, string>>({});
-  const [cidadeSelecionada, setCidadeSelecionada] = useState<string>("todas");
 
   // ── Carregar dados ────────────────────────────────────────────────────────
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErro(null);
-    const hoje     = hojeISO();
-    const daqui30  = adicionarDias(hoje, 30);
     const mesPrev  = mesAnteriorISO(mes);
 
     try {
-      const [rMes, rTodos, rCfg, rAnt, rProx] = await Promise.all([
-        fetch(`/api/lancamentos?mes=${mes}`,                                        { cache: "no-store" }),
-        fetch(`/api/lancamentos`,                                                   { cache: "no-store" }),
-        fetch(`/api/configuracoes/geral`,                                           { cache: "no-store" }),
-        fetch(`/api/lancamentos?mes=${mesPrev}`,                                    { cache: "no-store" }),
-        fetch(`/api/lancamentos?dataInicio=${hoje}&dataFim=${daqui30}`,             { cache: "no-store" }),
+      const [rMes, rTodos, rCfg, rAnt] = await Promise.all([
+        fetch(`/api/lancamentos?mes=${mes}`,     { cache: "no-store" }),
+        fetch(`/api/lancamentos`,                { cache: "no-store" }),
+        fetch(`/api/configuracoes/geral`,        { cache: "no-store" }),
+        fetch(`/api/lancamentos?mes=${mesPrev}`, { cache: "no-store" }),
       ]);
-      const [dMes, dTodos, dCfg, dAnt, dProx] = await Promise.all([
-        rMes.json(), rTodos.json(), rCfg.json(), rAnt.json(), rProx.json(),
+      const [dMes, dTodos, dCfg, dAnt] = await Promise.all([
+        rMes.json(), rTodos.json(), rCfg.json(), rAnt.json(),
       ]);
-      setLancamentosMes(Array.isArray(dMes)   ? dMes   : []);
-      setTodosLancamentos(Array.isArray(dTodos) ? dTodos : []);
-      setConfig(dCfg && typeof dCfg === "object" ? dCfg : {});
-      setLancamentosAnt(Array.isArray(dAnt)   ? dAnt   : []);
-      setLancamentosProximos(Array.isArray(dProx) ? dProx : []);
+      setLancamentosMes(Array.isArray(dMes)    ? dMes    : []);
+      setTodosLancamentos(Array.isArray(dTodos) ? dTodos  : []);
+      setConfig(dCfg && typeof dCfg === "object" ? dCfg   : {});
+      setLancamentosAnt(Array.isArray(dAnt)    ? dAnt    : []);
     } catch {
       setErro("Erro ao carregar dados. Tente recarregar a página.");
     } finally {
@@ -115,28 +99,13 @@ export default function DashboardPage() {
   // ── Feature flags ─────────────────────────────────────────────────────────
   const funcMetas      = config.func_metas      === "true";
   const funcEquilibrio = config.func_equilibrio === "true";
-  const funcCidade     = config.func_cidade     === "true";
   const funcPdf        = config.func_pdf        === "true";
   const funcAlertas    = config.func_alertas    === "true";
 
   const metaAnual  = parseFloat(config.meta_anual ?? "300000") || 300000;
   const nomeApp    = config.nome_app ?? "RANKEN Financeiro";
 
-  const cidadesDisp = useMemo(() => {
-    if (!funcCidade) return [];
-    return (config.cidades ?? "Maringá,Londrina,Curitiba,Geral")
-      .split(",").map((c) => c.trim()).filter(Boolean);
-  }, [funcCidade, config.cidades]);
-
-  useEffect(() => {
-    if (!funcCidade) setCidadeSelecionada("todas");
-  }, [funcCidade]);
-
-  // ── Filtro por cidade ─────────────────────────────────────────────────────
-  const lancamentosVisiveis = useMemo(() => {
-    if (!funcCidade || cidadeSelecionada === "todas") return lancamentosMes;
-    return lancamentosMes.filter((l) => (l.cidade ?? "Geral") === cidadeSelecionada);
-  }, [funcCidade, cidadeSelecionada, lancamentosMes]);
+  const lancamentosVisiveis = lancamentosMes;
 
   // Custo fixo real: soma lançamentos recorrentes marcados como custo fixo;
   // se nenhum cadastrado, usa o valor legacy de configuracoes (retrocompat.)
@@ -150,16 +119,14 @@ export default function DashboardPage() {
   }, [lancamentosVisiveis, config.custo_fixo_mensal]);
 
   // ── Totais do mês ─────────────────────────────────────────────────────────
-  const { totalReceitas, totalDespesas, receitasFixas, despesasFixas, receitasAvulsas, despesasAvulsas } =
-    useMemo(() => {
-      let r = 0, d = 0, rf = 0, df = 0, ra = 0, da = 0;
-      for (const l of lancamentosVisiveis) {
-        const fixo = l.tipoLancamento === "recorrente";
-        if (l.tipo === "receita") { r += l.valor; fixo ? rf += l.valor : ra += l.valor; }
-        else { d += l.valor; fixo ? df += l.valor : da += l.valor; }
-      }
-      return { totalReceitas: r, totalDespesas: d, receitasFixas: rf, despesasFixas: df, receitasAvulsas: ra, despesasAvulsas: da };
-    }, [lancamentosVisiveis]);
+  const { totalReceitas, totalDespesas } = useMemo(() => {
+    let r = 0, d = 0;
+    for (const l of lancamentosVisiveis) {
+      if (l.tipo === "receita") r += l.valor;
+      else d += l.valor;
+    }
+    return { totalReceitas: r, totalDespesas: d };
+  }, [lancamentosVisiveis]);
 
   // ── Dados do mês anterior ─────────────────────────────────────────────────
   const mesPrevISO = useMemo(() => mesAnteriorISO(mes), [mes]);
@@ -175,12 +142,6 @@ export default function DashboardPage() {
   const despesasAnt = useMemo(
     () => lancamentosAnt.filter((l) => l.tipo === "despesa").reduce((s, l) => s + l.valor, 0),
     [lancamentosAnt],
-  );
-
-  // ── Lançamentos de hoje ───────────────────────────────────────────────────
-  const lancamentosHoje = useMemo(
-    () => lancamentosMes.filter((l) => l.data === hojeISO()),
-    [lancamentosMes],
   );
 
   // ── Alertas automáticos ───────────────────────────────────────────────────
@@ -209,21 +170,8 @@ export default function DashboardPage() {
            l.data.startsWith(mesProximo),
   ), [todosLancamentos, mesProximo]);
 
-  const temBreakdown = receitasFixas > 0 || despesasFixas > 0;
-
   // ── PDF ───────────────────────────────────────────────────────────────────
   function handleExportarPDF() { exportarPDF(lancamentosVisiveis, mes, nomeApp); }
-
-  // ── Breakdown por cidade ──────────────────────────────────────────────────
-  const breakdownCidade = useMemo(() => {
-    if (!funcCidade || cidadeSelecionada !== "todas" || cidadesDisp.length === 0) return [];
-    return cidadesDisp.map((cid) => {
-      const lacs = lancamentosMes.filter((l) => (l.cidade ?? "Geral") === cid);
-      const r = lacs.filter((l) => l.tipo === "receita").reduce((s, l) => s + l.valor, 0);
-      const d = lacs.filter((l) => l.tipo === "despesa").reduce((s, l) => s + l.valor, 0);
-      return { cid, r, d, n: lacs.length };
-    }).filter((x) => x.n > 0);
-  }, [funcCidade, cidadeSelecionada, cidadesDisp, lancamentosMes]);
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -256,12 +204,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-marca-texto">Dashboard</h1>
           <p className="text-sm text-marca-texto-suave">
-            Visão geral de {rotuloMesAno(mes)}
-            {funcCidade && cidadeSelecionada !== "todas" && (
-              <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-marca-preto text-white">
-                {cidadeSelecionada}
-              </span>
-            )}.
+            Visão geral de {rotuloMesAno(mes)}.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -275,7 +218,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Indicador de saúde + Hoje ── */}
+      {/* ── Indicador de saúde ── */}
       <InsightsDashboard
         totalReceitas={totalReceitas}
         totalDespesas={totalDespesas}
@@ -283,24 +226,9 @@ export default function DashboardPage() {
         receitasAnt={receitasAnt}
         despesasAnt={despesasAnt}
         labelMesAnt={labelMesAnt}
-        lancamentosHoje={lancamentosHoje}
+        lancamentosHoje={[]}
+        mostrarHoje={false}
       />
-
-      {/* ── Filtro por cidade ── */}
-      {funcCidade && cidadesDisp.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {["todas", ...cidadesDisp].map((cid) => (
-            <button key={cid} onClick={() => setCidadeSelecionada(cid)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
-                cidadeSelecionada === cid
-                  ? "bg-marca-preto text-white border-marca-preto"
-                  : "bg-white text-marca-texto-suave border-marca-borda hover:bg-marca-fundo"
-              }`}>
-              {cid === "todas" ? "Todas" : cid}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* ── Alertas ── */}
       {saldoNegativo && (
@@ -382,59 +310,6 @@ export default function DashboardPage() {
           labelMesAnt={labelMesAnt}
         />
       )}
-
-      {/* ── Breakdown por cidade ── */}
-      {breakdownCidade.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-marca-texto-suave mb-2">Resumo por cidade</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            {breakdownCidade.map(({ cid, r, d }) => (
-              <button key={cid} type="button" onClick={() => setCidadeSelecionada(cid)}
-                className="bg-white border border-marca-borda rounded-xl p-3.5 text-left hover:border-marca-preto transition">
-                <p className="text-xs font-semibold text-marca-texto">{cid}</p>
-                <p className="text-sm font-bold text-receita mt-1">{formatarBRL(r)}</p>
-                <p className="text-xs text-despesa">{formatarBRL(d)}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Breakdown fixo vs avulso ── */}
-      {temBreakdown && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[
-            { label: "Receitas", fixo: receitasFixas, avulso: receitasAvulsas, cor: "text-receita", avulsoLabel: "Avulso" },
-            { label: "Despesas", fixo: despesasFixas, avulso: despesasAvulsas, cor: "text-despesa", avulsoLabel: "Avulso / Parcelado" },
-          ].map(({ label, fixo, avulso, cor, avulsoLabel }) => (
-            <div key={label} className="bg-white border border-marca-borda rounded-2xl p-4">
-              <p className="text-xs uppercase tracking-wide text-marca-texto-suave font-medium mb-2">{label} — composição</p>
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-marca-texto-suave">Recorrente</span>
-                  <span className={`font-semibold ${cor}`}>{formatarBRL(fixo)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-marca-texto-suave">{avulsoLabel}</span>
-                  <span className={`font-semibold ${cor}`}>{formatarBRL(avulso)}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── Gráficos de pizza ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <GraficoPizza lancamentos={lancamentosVisiveis} tipo="receita" />
-        <GraficoPizza lancamentos={lancamentosVisiveis} tipo="despesa" />
-      </div>
-
-      {/* ── Fluxo de Caixa — Próximos 30 dias ── */}
-      <FluxoCaixa
-        lancamentos={lancamentosProximos}
-        saldoAtual={totalReceitas - totalDespesas}
-      />
 
       {/* ── Gráfico de barras histórico ── */}
       <GraficoBarras lancamentos={todosLancamentos} meses={6} />

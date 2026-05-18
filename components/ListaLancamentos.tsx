@@ -62,6 +62,31 @@ function IconeGerenciar() {
   );
 }
 
+/* ── Tag de origem baseada na descrição ─────────────────────────────────────── */
+function TagOrigem({ descricao }: { descricao: string }) {
+  const d = descricao.toUpperCase();
+  let label: string;
+  let cls: string;
+
+  if (d.includes("STRIPE")) {
+    label = "Stripe"; cls = "bg-blue-100 text-blue-700";
+  } else if (d.includes("PIX")) {
+    label = "Pix";    cls = "bg-purple-100 text-purple-700";
+  } else if (d.includes("DÉB.TIT") || d.includes("BOLETO")) {
+    label = "Boleto"; cls = "bg-orange-100 text-orange-700";
+  } else if (d.includes("TRANSF")) {
+    label = "Transf"; cls = "bg-gray-100 text-gray-600";
+  } else {
+    return null;
+  }
+
+  return (
+    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
 /* ── Badge tipo de lançamento ──────────────────────────────────────────────── */
 function BadgeTipo({ l }: { l: Lancamento }) {
   if (l.tipoLancamento === "recorrente") {
@@ -251,6 +276,7 @@ export default function ListaLancamentos({
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-sm text-marca-texto">{l.descricao}</span>
                     <BadgeTipo l={l} />
+                    <TagOrigem descricao={l.descricao} />
                     {isFavorito && (
                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">
                         ★ Favorito
@@ -340,6 +366,7 @@ export default function ListaLancamentos({
                   <div className="flex items-center flex-wrap gap-1.5">
                     <span className="text-sm font-medium text-marca-texto">{l.descricao}</span>
                     <BadgeTipo l={l} />
+                    <TagOrigem descricao={l.descricao} />
                     {isFavorito && (
                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">
                         ★ Favorito

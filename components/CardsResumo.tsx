@@ -56,11 +56,11 @@ export default function CardsResumo({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-4">
-      <div className="bg-white border border-marca-borda rounded-2xl p-3 md:p-5">
-        <p className="text-xs font-semibold tracking-wider uppercase text-marca-texto-suave">
+      <div className="bg-white border border-marca-borda rounded-2xl p-3">
+        <p className="text-xs font-semibold tracking-widest text-gray-500">
           Receitas
         </p>
-        <p className="mt-1.5 md:mt-2 text-2xl md:text-3xl font-bold text-receita">
+        <p className="mt-1 text-xl font-bold text-receita">
           {formatarBRL(totalReceitas)}
         </p>
         <div className="mt-1">
@@ -73,11 +73,11 @@ export default function CardsResumo({
         </div>
       </div>
 
-      <div className="bg-white border border-marca-borda rounded-2xl p-3 md:p-5">
-        <p className="text-xs font-semibold tracking-wider uppercase text-marca-texto-suave">
+      <div className="bg-white border border-marca-borda rounded-2xl p-3">
+        <p className="text-xs font-semibold tracking-widest text-gray-500">
           Despesas
         </p>
-        <p className="mt-1.5 md:mt-2 text-2xl md:text-3xl font-bold text-despesa">
+        <p className="mt-1 text-xl font-bold text-despesa">
           {formatarBRL(totalDespesas)}
         </p>
         <div className="mt-1">
@@ -90,12 +90,12 @@ export default function CardsResumo({
         </div>
       </div>
 
-      <div className="bg-white border border-marca-borda rounded-2xl p-3 md:p-5">
-        <p className="text-xs font-semibold tracking-wider uppercase text-marca-texto-suave">
+      <div className="bg-white border border-marca-borda rounded-2xl p-3">
+        <p className="text-xs font-semibold tracking-widest text-gray-500">
           Saldo do mês
         </p>
         <p
-          className={`mt-1.5 md:mt-2 text-2xl md:text-3xl font-bold ${
+          className={`mt-1 text-xl font-bold ${
             saldoPositivo ? "text-receita" : "text-despesa"
           }`}
         >
