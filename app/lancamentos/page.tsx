@@ -25,24 +25,62 @@ export default function LancamentosPage() {
   const [versao, setVersao]       = useState(0);
   const [grupoAberto, setGrupoAberto] = useState<string | null>(null);
 
+  const [categoriaSel, setCategoriaSel] = useState("");
+  const [periodoTipo, setPeriodoTipo]   = useState<"mes" | "personalizado">("mes");
+  const [dataIni, setDataIni]           = useState("");
+  const [dataFim, setDataFim]           = useState("");
+  const [usuarioSel, setUsuarioSel]     = useState("");
+  const [categorias, setCategorias]     = useState<string[]>([]);
+  const [usuarios, setUsuarios]         = useState<{ id: string; nome: string }[]>([]);
+
   // Estado do modal de edição / modelo
   const [modalEditar, setModalEditar] = useState<{
     editandoId?: string;
     lancamento?: Partial<Lancamento>;
   } | null>(null);
 
+  // ── Carregar categorias e usuários ─────────────────────────────────────────
+  useEffect(() => {
+    fetch("/api/configuracoes/categorias")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data))
+          setCategorias(data.filter((c: any) => c.ativo).map((c: any) => c.nome));
+      })
+      .catch(() => {});
+    if (isMaster) {
+      fetch("/api/usuarios")
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data))
+            setUsuarios(data.map((u: any) => ({ id: u.id, nome: u.nome })));
+        })
+        .catch(() => {});
+    }
+  }, [isMaster]);
+
   // ── Carregar lançamentos ────────────────────────────────────────────────────
   const carregar = useCallback(async () => {
     setCarregando(true);
     try {
-      const url  = `/api/lancamentos?mes=${mes}&tipo=${tipo}`;
-      const resp = await fetch(url, { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (periodoTipo === "mes") {
+        params.set("mes", mes);
+      } else {
+        if (dataIni) params.set("dataInicio", dataIni);
+        if (dataFim)  params.set("dataFim",   dataFim);
+      }
+      params.set("tipo", tipo);
+      if (usuarioSel)   params.set("usuario",   usuarioSel);
+      if (categoriaSel) params.set("categoria", categoriaSel);
+
+      const resp = await fetch(`/api/lancamentos?${params.toString()}`, { cache: "no-store" });
       const dados = await resp.json();
       setLancamentos(Array.isArray(dados) ? dados : []);
     } finally {
       setCarregando(false);
     }
-  }, [mes, tipo]);
+  }, [mes, tipo, periodoTipo, dataIni, dataFim, usuarioSel, categoriaSel]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -149,10 +187,11 @@ export default function LancamentosPage() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-marca-texto">Lançamentos</h1>
-          <p className="text-sm text-marca-texto-suave">{rotuloMesAno(mes)}</p>
+          <p className="text-sm text-marca-texto-suave">
+            {periodoTipo === "mes" ? rotuloMesAno(mes) : (dataIni && dataFim ? `${dataIni} a ${dataFim}` : "Período personalizado")}
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <FiltroMes valor={mes} onChange={setMes} />
           <button
             type="button"
             onClick={exportar}
@@ -170,56 +209,139 @@ export default function LancamentosPage() {
         </div>
       </div>
 
-      {/* Filtros de tipo + busca */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        <div className="flex flex-wrap gap-2">
-          {filtros.map((f) => {
-            const ativo = tipo === f.valor;
-            return (
-              <button
-                key={f.valor}
-                type="button"
-                onClick={() => setTipo(f.valor)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
-                  ativo
-                    ? "bg-marca-preto text-white border-marca-preto hover:opacity-90"
-                    : "bg-white text-marca-texto-suave border-marca-borda hover:bg-marca-fundo"
-                }`}
-              >
-                {f.rotulo}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Campo de busca */}
-        <div className="relative flex-1 min-w-0 sm:max-w-xs">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-marca-texto-suave pointer-events-none">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            type="text"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por descrição, categoria..."
-            className="w-full pl-9 pr-3 py-1.5 text-sm rounded-full border border-marca-borda bg-white focus:outline-none focus:ring-2 focus:ring-marca-preto"
-          />
-          {busca && (
+      {/* Filtros — linha 1: período */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          {/* Toggle Por mês / Personalizado */}
+          <div className="flex rounded-full border border-marca-borda overflow-hidden">
             <button
               type="button"
-              onClick={() => setBusca("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-marca-texto-suave hover:text-marca-preto"
+              onClick={() => setPeriodoTipo("mes")}
+              className={`px-3 py-1.5 text-xs font-medium transition ${
+                periodoTipo === "mes"
+                  ? "bg-marca-preto text-white"
+                  : "bg-white text-marca-texto-suave hover:bg-marca-fundo"
+              }`}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className="w-3.5 h-3.5">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
+              Por mês
             </button>
+            <button
+              type="button"
+              onClick={() => setPeriodoTipo("personalizado")}
+              className={`px-3 py-1.5 text-xs font-medium transition ${
+                periodoTipo === "personalizado"
+                  ? "bg-marca-preto text-white"
+                  : "bg-white text-marca-texto-suave hover:bg-marca-fundo"
+              }`}
+            >
+              Personalizado
+            </button>
+          </div>
+
+          {/* Seletor de período */}
+          {periodoTipo === "mes" ? (
+            <FiltroMes valor={mes} onChange={setMes} />
+          ) : (
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-marca-texto-suave whitespace-nowrap">De:</label>
+              <input
+                type="date"
+                value={dataIni}
+                onChange={(e) => setDataIni(e.target.value)}
+                className="px-2 py-1.5 text-sm rounded-lg border border-marca-borda bg-white focus:outline-none focus:ring-2 focus:ring-marca-preto"
+              />
+              <label className="text-xs text-marca-texto-suave whitespace-nowrap">Até:</label>
+              <input
+                type="date"
+                value={dataFim}
+                onChange={(e) => setDataFim(e.target.value)}
+                className="px-2 py-1.5 text-sm rounded-lg border border-marca-borda bg-white focus:outline-none focus:ring-2 focus:ring-marca-preto"
+              />
+            </div>
           )}
         </div>
+
+        {/* Filtros — linha 2: tipo pills + busca */}
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <div className="flex flex-wrap gap-2">
+            {filtros.map((f) => {
+              const ativo = tipo === f.valor;
+              return (
+                <button
+                  key={f.valor}
+                  type="button"
+                  onClick={() => setTipo(f.valor)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                    ativo
+                      ? "bg-marca-preto text-white border-marca-preto hover:opacity-90"
+                      : "bg-white text-marca-texto-suave border-marca-borda hover:bg-marca-fundo"
+                  }`}
+                >
+                  {f.rotulo}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Campo de busca */}
+          <div className="relative flex-1 min-w-0 sm:max-w-xs">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-marca-texto-suave pointer-events-none">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por descrição, categoria..."
+              className="w-full pl-9 pr-3 py-1.5 text-sm rounded-full border border-marca-borda bg-white focus:outline-none focus:ring-2 focus:ring-marca-preto"
+            />
+            {busca && (
+              <button
+                type="button"
+                onClick={() => setBusca("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-marca-texto-suave hover:text-marca-preto"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  className="w-3.5 h-3.5">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Filtros — linha 3: categoria + usuário (se disponíveis) */}
+        {(categorias.length > 0 || (isMaster && usuarios.length > 0)) && (
+          <div className="flex flex-wrap gap-3 items-center">
+            {categorias.length > 0 && (
+              <select
+                value={categoriaSel}
+                onChange={(e) => setCategoriaSel(e.target.value)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-marca-borda bg-white text-marca-texto focus:outline-none focus:ring-2 focus:ring-marca-preto"
+              >
+                <option value="">Todas categorias</option>
+                {categorias.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            )}
+            {isMaster && usuarios.length > 0 && (
+              <select
+                value={usuarioSel}
+                onChange={(e) => setUsuarioSel(e.target.value)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-marca-borda bg-white text-marca-texto focus:outline-none focus:ring-2 focus:ring-marca-preto"
+              >
+                <option value="">Todos usuários</option>
+                {usuarios.map((u) => (
+                  <option key={u.id} value={u.id}>{u.nome}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Lista */}

@@ -539,6 +539,21 @@ export function filtrarPorTipo(
   return lancamentos.filter((l) => l.tipo === tipo);
 }
 
+export function filtrarPorPeriodo(
+  lancamentos: Lancamento[],
+  dataInicio: string,
+  dataFim: string,
+): Lancamento[] {
+  return lancamentos.filter((l) => l.data >= dataInicio && l.data <= dataFim);
+}
+
+export function filtrarPorCategoria(
+  lancamentos: Lancamento[],
+  categoria: string,
+): Lancamento[] {
+  return lancamentos.filter((l) => l.categoria === categoria);
+}
+
 // ─── Usuários ─────────────────────────────────────────────────────────────────
 
 export async function buscarUsuarioPorLogin(login: string): Promise<UsuarioComSenha | null> {

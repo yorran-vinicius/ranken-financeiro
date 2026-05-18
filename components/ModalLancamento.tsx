@@ -102,7 +102,7 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
     }
   }
 
-  const inp  = "mt-1 w-full px-3 py-2 rounded-lg border border-marca-borda bg-white focus:outline-none focus:ring-2 focus:ring-marca-preto text-sm";
+  const inp  = "mt-1 w-full px-3 py-3 min-h-[48px] rounded-lg border border-marca-borda bg-white focus:outline-none focus:ring-2 focus:ring-marca-preto text-sm";
   const lbl  = "text-xs font-medium text-marca-texto-suave";
 
   return (
@@ -133,7 +133,7 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
         <div className="grid grid-cols-2 gap-2">
           {(["receita", "despesa"] as TipoLancamento[]).map((t) => (
             <button key={t} type="button" onClick={() => trocarTipo(t)}
-              className={`py-2 rounded-lg text-sm font-medium border transition ${
+              className={`py-3 min-h-[48px] rounded-lg text-sm font-medium border transition ${
                 tipo === t
                   ? t === "receita"
                     ? "bg-receita text-white border-receita"
@@ -195,7 +195,7 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
         {erro && <p className="text-sm text-despesa" role="alert">{erro}</p>}
 
         <button type="submit" disabled={enviando}
-          className="w-full py-2.5 rounded-lg bg-marca-preto text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
+          className="w-full py-3 min-h-[48px] rounded-lg bg-marca-preto text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
           {enviando
             ? (isEditar ? "Salvando..." : "Adicionando...")
             : (isEditar ? "Salvar alterações" : "Adicionar lançamento")}

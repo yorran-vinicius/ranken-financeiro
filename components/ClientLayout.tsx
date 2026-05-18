@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import ModalLancamento from "./ModalLancamento";
+import { useAuth } from "./AuthProvider";
 
-/* Ícones SVG inline */
+/* ── Ícones SVG ─────────────────────────────────────────────────────────────── */
 function IconHome() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
@@ -32,27 +33,73 @@ function IconList() {
   );
 }
 
+function IconChart() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className="w-5 h-5">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4"  />
+      <line x1="6"  y1="20" x2="6"  y2="14" />
+      <line x1="2"  y1="20" x2="22" y2="20" />
+    </svg>
+  );
+}
+
+function IconSettings() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className="w-5 h-5">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" />
+      <path d="M12 2v2m0 16v2M2 12h2m16 0h2" />
+    </svg>
+  );
+}
+
 function IconPlus() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
       className="w-6 h-6">
       <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
+      <line x1="5"  y1="12" x2="19" y2="12" />
     </svg>
   );
 }
 
+/* ── Link de navegação inferior ─────────────────────────────────────────────── */
+function NavLink({
+  href, label, icon, ativo,
+}: {
+  href: string; label: string; icon: React.ReactNode; ativo: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors min-h-[48px] flex-1 ${
+        ativo ? "text-marca-preto" : "text-marca-texto-suave"
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </Link>
+  );
+}
+
+/* ── Componente principal ───────────────────────────────────────────────────── */
 export default function ClientLayout() {
   const pathname = usePathname();
+  const usuario  = useAuth();
   const [modalAberto, setModalAberto] = useState(false);
-  const [toast, setToast] = useState(false);
+  const [toast, setToast]             = useState(false);
 
-  /* Não renderiza em rotas de auth */
+  // Não renderiza em rotas de auth
   const rotasOcultas = ["/login", "/trocar-senha"];
   if (rotasOcultas.some((r) => pathname.startsWith(r))) return null;
 
-  function abrirModal() { setModalAberto(true); }
+  function abrirModal()  { setModalAberto(true);  }
   function fecharModal() { setModalAberto(false); }
 
   function aoSalvar() {
@@ -62,17 +109,14 @@ export default function ClientLayout() {
     setTimeout(() => setToast(false), 3000);
   }
 
-  const navLinks = [
-    { href: "/",             label: "Dashboard",   icon: <IconHome /> },
-    { href: "/lancamentos",  label: "Lançamentos",  icon: <IconList /> },
-  ];
-
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
+  const isMaster = usuario?.perfil === "master";
+
   return (
     <>
-      {/* ── Botão flutuante "+" — desktop (escondido em mobile, pois tem a nav bar) ── */}
+      {/* ── Botão flutuante "+" — desktop (oculto em mobile) ── */}
       <button
         onClick={abrirModal}
         aria-label="Novo lançamento"
@@ -82,37 +126,53 @@ export default function ClientLayout() {
       </button>
 
       {/* ── Barra de navegação inferior — mobile ── */}
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-marca-borda flex items-center justify-around h-16 px-4">
+      <nav
+        aria-label="Navegação principal"
+        className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-marca-borda flex items-stretch h-16"
+      >
         {/* Dashboard */}
-        <Link
-          href={navLinks[0].href}
-          className={`flex flex-col items-center gap-0.5 text-xs font-medium transition-colors ${
-            isActive(navLinks[0].href) ? "text-marca-preto" : "text-marca-texto-suave"
-          }`}
-        >
-          {navLinks[0].icon}
-          <span>{navLinks[0].label}</span>
-        </Link>
-
-        {/* Botão "+" central */}
-        <button
-          onClick={abrirModal}
-          aria-label="Novo lançamento"
-          className="flex items-center justify-center w-14 h-14 rounded-full bg-marca-preto text-white shadow-md hover:opacity-90 transition-opacity -mt-5"
-        >
-          <IconPlus />
-        </button>
+        <NavLink
+          href="/"
+          label="Dashboard"
+          icon={<IconHome />}
+          ativo={isActive("/")}
+        />
 
         {/* Lançamentos */}
-        <Link
-          href={navLinks[1].href}
-          className={`flex flex-col items-center gap-0.5 text-xs font-medium transition-colors ${
-            isActive(navLinks[1].href) ? "text-marca-preto" : "text-marca-texto-suave"
-          }`}
-        >
-          {navLinks[1].icon}
-          <span>{navLinks[1].label}</span>
-        </Link>
+        <NavLink
+          href="/lancamentos"
+          label="Lançamentos"
+          icon={<IconList />}
+          ativo={isActive("/lancamentos")}
+        />
+
+        {/* Botão "+" central destacado */}
+        <div className="flex items-center justify-center flex-1">
+          <button
+            onClick={abrirModal}
+            aria-label="Novo lançamento"
+            className="flex items-center justify-center w-13 h-13 rounded-full bg-marca-preto text-white shadow-md hover:opacity-90 transition-opacity -mt-5"
+            style={{ width: 52, height: 52 }}
+          >
+            <IconPlus />
+          </button>
+        </div>
+
+        {/* Análise */}
+        <NavLink
+          href="/lancamentos"
+          label="Análise"
+          icon={<IconChart />}
+          ativo={false}
+        />
+
+        {/* Configurações */}
+        <NavLink
+          href="/configuracoes"
+          label={isMaster ? "Config." : "Config."}
+          icon={<IconSettings />}
+          ativo={isActive("/configuracoes")}
+        />
       </nav>
 
       {/* ── Modal de novo lançamento ── */}
@@ -125,10 +185,14 @@ export default function ClientLayout() {
 
       {/* ── Toast de confirmação ── */}
       {toast && (
-        <div className="fixed bottom-24 sm:bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-receita text-white px-5 py-3 rounded-full shadow-lg text-sm font-medium animate-fade-in-up pointer-events-none">
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-24 sm:bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-receita text-white px-5 py-3 rounded-full shadow-lg text-sm font-medium animate-fade-in-up pointer-events-none whitespace-nowrap"
+        >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            className="w-4 h-4">
+            className="w-4 h-4 shrink-0">
             <polyline points="20 6 9 17 4 12" />
           </svg>
           Lançamento adicionado!

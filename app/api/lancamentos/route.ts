@@ -5,6 +5,8 @@ import {
   adicionarParcelado,
   filtrarPorMes,
   filtrarPorTipo,
+  filtrarPorPeriodo,
+  filtrarPorCategoria,
   lerLancamentos,
   listarCategorias,
 } from "@/lib/db";
@@ -19,15 +21,20 @@ const FREQUENCIAS_VALIDAS: Frequencia[] = ["mensal", "semanal", "anual"];
 export async function GET(req: NextRequest) {
   const sessao = await getSession();
   const { searchParams } = new URL(req.url);
-  const mes   = searchParams.get("mes");
-  const tipo  = (searchParams.get("tipo") ?? "todos") as TipoLancamento | "todos";
-  const userId = searchParams.get("usuario") ?? undefined;
+  const mes       = searchParams.get("mes");
+  const tipo      = (searchParams.get("tipo") ?? "todos") as TipoLancamento | "todos";
+  const userId    = searchParams.get("usuario") ?? undefined;
+  const dataInicio = searchParams.get("dataInicio");
+  const dataFim    = searchParams.get("dataFim");
+  const categoria  = searchParams.get("categoria");
 
   // Editors only see their own lancamentos; masters can filter or see all
   const filtroUsuario = sessao.perfil === "master" ? userId : sessao.userId;
 
   let lancamentos = await lerLancamentos(filtroUsuario);
   if (mes) lancamentos = filtrarPorMes(lancamentos, mes);
+  if (!mes && dataInicio && dataFim) lancamentos = filtrarPorPeriodo(lancamentos, dataInicio, dataFim);
+  if (categoria) lancamentos = filtrarPorCategoria(lancamentos, categoria);
   lancamentos = filtrarPorTipo(lancamentos, tipo);
 
   return NextResponse.json(lancamentos);
