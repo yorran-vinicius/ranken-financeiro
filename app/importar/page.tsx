@@ -144,30 +144,73 @@ export default function ImportarPage() {
     const selecionados = itens.filter((it) => it.selecionado);
     if (selecionados.length === 0) return;
     setImportando(true);
+
+    // 1. Busca categorias disponíveis para fazer o match por nome
+    let categorias: Array<{ id: number; nome: string; tipo: string; ativo: boolean }> = [];
+    try {
+      const catRes = await fetch("/api/configuracoes/categorias");
+      if (catRes.ok) categorias = await catRes.json();
+    } catch {
+      // segue sem categorias — usará o nome sugerido diretamente
+    }
+
+    // 2. Envia cada lançamento em paralelo com Promise.allSettled
+    const promises: Promise<number>[] = selecionados.map(async (it): Promise<number> => {
+      const tipoAPI = it.tipo === "entrada" ? "receita" : "despesa";
+
+      // 3. Match da categoria pelo nome; fallback para a primeira ativa do tipo
+      const catsDoTipo = categorias.filter((c) => c.tipo === tipoAPI && c.ativo);
+      const catMatch   = catsDoTipo.find((c) => c.nome === it.categoria) ?? catsDoTipo[0];
+      const nomeCategoria = catMatch?.nome ?? it.categoria;
+
+      const payload = {
+        descricao:      it.descricao,
+        valor:          it.valor,
+        tipo:           tipoAPI,
+        categoria:      nomeCategoria,
+        data:           it.dataEditada || hojeISO(),
+        cidade:         "Geral",
+        tipoLancamento: "avulso",
+      };
+
+      const resp = await fetch("/api/lancamentos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+      return it._id;
+    });
+
+    // 4. Coleta resultados sem parar no primeiro erro
+    const results = await Promise.allSettled(promises);
+
     let ok = 0;
     let erros = 0;
-    for (const it of selecionados) {
-      try {
-        const resp = await fetch("/api/lancamentos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            descricao:       it.descricao,
-            valor:           it.valor,
-            tipo:            it.tipo === "entrada" ? "receita" : "despesa",
-            categoria:       it.categoria,
-            data:            it.dataEditada || hojeISO(),
-            tipoLancamento:  "avulso",
-          }),
-        });
-        if (resp.ok) ok++; else erros++;
-      } catch { erros++; }
-    }
+    const idsImportados = new Set<number>();
+    let primeiraFalhaLogada = false;
+
+    results.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        ok++;
+        idsImportados.add(result.value);
+      } else {
+        erros++;
+        // 5. Loga o primeiro lançamento com falha para debug
+        if (!primeiraFalhaLogada) {
+          console.log("Primeiro lançamento com falha:", selecionados[i], result.reason);
+          primeiraFalhaLogada = true;
+        }
+      }
+    });
+
     setImportando(false);
     setResumo({ ok, erro: erros });
-    const idsSel = new Set(selecionados.map((it) => it._id));
-    setItens((prev) => prev.filter((it) => !idsSel.has(it._id)));
-    window.dispatchEvent(new CustomEvent("ranken:lancamento-adicionado"));
+    setItens((prev) => prev.filter((it) => !idsImportados.has(it._id)));
+    if (ok > 0) window.dispatchEvent(new CustomEvent("ranken:lancamento-adicionado"));
   }
 
   const totalSelecionados = itens.filter((it) => it.selecionado).length;
