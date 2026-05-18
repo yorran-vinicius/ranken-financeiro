@@ -129,10 +129,8 @@ async function migrar() {
       INSERT INTO usuarios (id, login, nome, perfil, senha_hash, ativo, deve_atualizar_senha)
       VALUES (${randomUUID()}, ${u.login}, ${u.nome}, ${u.perfil}, ${senhaHash}, TRUE, TRUE)
       ON CONFLICT (login) DO UPDATE SET
-        nome                 = EXCLUDED.nome,
-        perfil               = EXCLUDED.perfil,
-        senha_hash           = EXCLUDED.senha_hash,
-        deve_atualizar_senha = TRUE
+        nome   = EXCLUDED.nome,
+        perfil = EXCLUDED.perfil
     `;
     console.log(`✅  Usuário '${u.login}' (${u.perfil}) OK`);
   }

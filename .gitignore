@@ -3,5 +3,10 @@ node_modules
 out
 .DS_Store
 *.log
-.env*
+# Variáveis de ambiente — nunca commitar valores reais
+.env
+.env.local
+.env.*.local
+# Manter arquivos de exemplo no repositório
+!.env*.example
 data/

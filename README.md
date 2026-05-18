@@ -1,9 +1,8 @@
 # RANKEN Financeiro
 
-Aplicação web de controle financeiro (MVP) para a RANKEN.
+Aplicação web de controle financeiro para a RANKEN — comunidade de esportes de raquete.
 
-Stack: **Next.js 14 (App Router) · React · Tailwind CSS · Recharts**
-Persistência: arquivo JSON local em `data/lancamentos.json`.
+Stack: **Next.js 14 (App Router) · React · Tailwind CSS · Recharts · Neon Postgres**
 
 ---
 
@@ -11,8 +10,6 @@ Persistência: arquivo JSON local em `data/lancamentos.json`.
 
 - Node.js **18.17+** (recomendado 20 LTS)
 - npm (já vem com o Node)
-
-Se ainda não tem o Node:
 
 ```bash
 # macOS via Homebrew
@@ -23,9 +20,42 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 nvm install --lts
 ```
 
-## Como rodar
+---
 
-Na pasta do projeto:
+## Configuração do ambiente
+
+Copie o arquivo de exemplo e preencha os valores:
+
+```bash
+cp .env.local.example .env.local
+```
+
+### Variáveis obrigatórias
+
+| Variável | Descrição |
+|---|---|
+| `DATABASE_URL` | String de conexão do banco Neon (obtenha no painel do Neon/Vercel) |
+| `SESSION_SECRET` | **⚠️ OBRIGATÓRIO em produção** — segredo para assinar cookies de sessão |
+
+### Gerando um SESSION_SECRET seguro
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Cole o valor gerado no `.env.local` (desenvolvimento) **e** nas variáveis de ambiente do Vercel (produção).
+
+> **Atenção:** sem `SESSION_SECRET` definido em produção, o app usa um secret público embutido no código-fonte — qualquer pessoa poderia forjar sessões. O app exibe um aviso no console quando isso ocorre.
+
+### No Vercel
+
+1. Abra o projeto → **Settings → Environment Variables**
+2. Adicione `DATABASE_URL` e `SESSION_SECRET`
+3. Faça redeploy
+
+---
+
+## Rodar localmente
 
 ```bash
 npm install
@@ -34,82 +64,88 @@ npm run dev
 
 Abra `http://localhost:3000`.
 
-Para produção:
+---
+
+## Migração do banco
+
+Para criar as tabelas e os usuários iniciais no banco Neon:
 
 ```bash
-npm run build
-npm start
+node --env-file=.env.local scripts/migrar.mjs
 ```
+
+Usuários criados (senha inicial: `ranken2026`):
+
+| Login | Perfil |
+|---|---|
+| `yorran` | master |
+| `thales` | editor |
+| `laura` | editor |
 
 ---
 
-## Funcionalidades
-
-- **Adicionar lançamento** (descrição, valor, tipo, categoria, data)
-- **Listar lançamentos** com filtros por **tipo** (receita/despesa/todos) e por **mês**
-- **Deletar** lançamento
-- **Dashboard** com total de receitas, total de despesas e saldo do mês
-- **Gráfico de pizza** por categoria (receitas e despesas separadamente)
-- **Gráfico de barras** com a evolução dos últimos 6 meses (receitas × despesas)
-- **Exportar CSV** dos lançamentos do mês selecionado (compatível com Excel/Sheets)
-
-## Categorias fixas
-
-- **Receitas:** Mensalidades, Patrocínios, Loja, Confraternização, Outros
-- **Despesas:** Time, Marketing, Tecnologia, Operacional, Confraternização, Outros
-
-## Identidade visual
-
-- Preto e branco como base
-- Verde RANKEN para receitas: `#3B6D11`
-- Vermelho para despesas: `#A32D2D`
-- Fonte: **Inter**
-- Layout 100% responsivo (mobile + desktop)
-
-## Estrutura
+## Estrutura do projeto
 
 ```
 ranken-financeiro/
 ├── app/
 │   ├── api/
-│   │   ├── lancamentos/route.ts        # GET, POST
-│   │   ├── lancamentos/[id]/route.ts   # DELETE
-│   │   └── exportar/route.ts           # GET (CSV)
-│   ├── lancamentos/page.tsx            # tela de lançamentos
-│   ├── page.tsx                        # dashboard
+│   │   ├── auth/login/route.ts           # POST login (com rate limiting)
+│   │   ├── lancamentos/route.ts          # GET, POST
+│   │   ├── lancamentos/[id]/route.ts     # PATCH, DELETE
+│   │   ├── configuracoes/geral/route.ts  # GET, PUT
+│   │   └── exportar/route.ts             # GET CSV
+│   ├── configuracoes/page.tsx
+│   ├── lancamentos/page.tsx
+│   ├── page.tsx                          # dashboard
 │   ├── layout.tsx
 │   └── globals.css
 ├── components/
-│   ├── CardsResumo.tsx
-│   ├── FiltroMes.tsx
-│   ├── GraficoBarras.tsx
-│   ├── GraficoPizza.tsx
-│   ├── ListaLancamentos.tsx
-│   ├── NavBar.tsx
-│   └── NovoLancamento.tsx
+│   ├── ClientLayout.tsx      # botão +, nav mobile, toast
+│   ├── CardsResumo.tsx       # cards com variação % vs mês anterior
+│   ├── FluxoCaixa.tsx        # próximos 30 dias
+│   ├── InsightsDashboard.tsx # saúde financeira + linha hoje
+│   ├── ListaLancamentos.tsx  # lista com editar/favoritar/deletar
+│   ├── ModalLancamento.tsx   # modal criar/editar lançamento
+│   ├── PainelMetas.tsx
+│   ├── PontoEquilibrio.tsx
+│   └── ...
 ├── lib/
-│   ├── categorias.ts
-│   ├── db.ts                # leitura/escrita do JSON
-│   └── format.ts            # formatadores BRL, datas, meses
-├── data/
-│   └── lancamentos.json     # banco local (versionar vazio)
+│   ├── auth.ts          # iron-session
+│   ├── db.ts            # Neon Postgres
+│   ├── exportarPDF.ts
+│   └── format.ts
+├── scripts/
+│   └── migrar.mjs       # cria tabelas e seed inicial
+├── .env.local.example   # template de variáveis de ambiente
 ├── tailwind.config.ts
 └── package.json
 ```
 
-## Endpoints
+---
 
-| Método | Rota                          | Descrição                                    |
-| ------ | ----------------------------- | -------------------------------------------- |
-| GET    | `/api/lancamentos?mes=YYYY-MM&tipo=receita\|despesa\|todos` | lista filtrada |
-| POST   | `/api/lancamentos`            | cria lançamento                              |
-| DELETE | `/api/lancamentos/:id`        | remove lançamento                            |
-| GET    | `/api/exportar?mes=YYYY-MM`   | exporta CSV (separador `;`, BOM UTF-8)       |
+## Segurança
 
-## Roadmap (próximos MVPs)
+- **Senhas** armazenadas com bcrypt (cost 10)
+- **Sessão** assinada com iron-session (AES-256-CBC + HMAC-SHA256)
+- **Rate limiting** no login: máx. 5 tentativas por IP em 15 min → HTTP 429
+- **SESSION_SECRET** obrigatório em produção — aviso no console se ausente
+- **Timing attack** mitigado: hash comparado mesmo quando usuário não existe
 
-- Autenticação por usuário
-- Migrar de JSON para SQLite (better-sqlite3) ou Postgres
-- Edição inline de lançamentos
-- Anexar comprovantes
-- Importar extrato bancário
+---
+
+## Funcionalidades
+
+- Dashboard com cards de receita/despesa/saldo com variação % vs mês anterior
+- Indicador de saúde financeira (verde/amarelo/vermelho)
+- Fluxo de caixa projetado para os próximos 30 dias
+- Painel de metas anuais com projeção e data estimada
+- Ponto de equilíbrio (receita vs custo fixo mensal)
+- Filtro por cidade com breakdown por localidade
+- Alertas automáticos por categoria e saldo negativo
+- Exportar relatório PDF profissional
+- Lançamentos: avulso, recorrente e parcelado
+- Favoritos com "usar como modelo"
+- Busca + filtros combinados (tipo, categoria, período, usuário)
+- Exportar CSV
+- Configurações: categorias, usuários, funcionalidades por toggle
