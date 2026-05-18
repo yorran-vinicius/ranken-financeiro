@@ -87,11 +87,11 @@ export default function ClientLayout() {
 
   return (
     <>
-      {/* ── FAB "+" — mobile apenas, acima da bottom nav ── */}
+      {/* ── FAB "+" — fixo em todas as telas, bottom-6 right-6 ── */}
       <button
         onClick={abrirModal}
         aria-label="Novo lançamento"
-        className="md:hidden fixed bottom-20 right-5 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-marca-preto text-white shadow-lg hover:opacity-90 active:scale-95 transition-all"
+        className="fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-marca-preto text-white shadow-lg hover:opacity-90 active:scale-95 transition-all"
       >
         <IconPlus />
       </button>
