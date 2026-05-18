@@ -2,7 +2,6 @@
 
 import {
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -36,7 +35,7 @@ export default function GraficoPizza({ lancamentos, tipo }: Props) {
     return (
       <div className="bg-white border border-marca-borda rounded-2xl p-5">
         <h3 className="text-sm font-semibold text-marca-texto mb-2">{titulo}</h3>
-        <div className="h-48 flex items-center justify-center text-sm text-marca-texto-suave">
+        <div className="h-[200px] md:h-[300px] flex items-center justify-center text-sm text-marca-texto-suave">
           Sem dados neste mês.
         </div>
       </div>
@@ -46,15 +45,17 @@ export default function GraficoPizza({ lancamentos, tipo }: Props) {
   return (
     <div className="bg-white border border-marca-borda rounded-2xl p-5">
       <h3 className="text-sm font-semibold text-marca-texto mb-2">{titulo}</h3>
-      <div className="h-64">
+
+      {/* Gráfico — altura responsiva */}
+      <div className="h-[200px] md:h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={dados}
               dataKey="value"
               nameKey="name"
-              innerRadius={45}
-              outerRadius={80}
+              innerRadius={35}
+              outerRadius={70}
               paddingAngle={2}
             >
               {dados.map((_, i) => (
@@ -65,13 +66,21 @@ export default function GraficoPizza({ lancamentos, tipo }: Props) {
               formatter={(value: number) => formatarBRL(value)}
               contentStyle={{ borderRadius: 8, border: "1px solid #e5e5e5" }}
             />
-            <Legend
-              verticalAlign="bottom"
-              iconType="circle"
-              wrapperStyle={{ fontSize: 12 }}
-            />
           </PieChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Legenda abaixo do gráfico */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 justify-center">
+        {dados.map((item, i) => (
+          <div key={item.name} className="flex items-center gap-1.5 text-xs text-marca-texto min-w-0">
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ background: paleta[i % paleta.length] }}
+            />
+            <span className="truncate max-w-[120px]">{item.name}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -19,11 +19,11 @@ export default function RootLayout({
       <body className="min-h-screen font-sans">
         <AuthProvider>
           <NavBar />
-          <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 pb-24 sm:pb-10">
+          <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 pb-32 md:pb-10">
             {children}
           </main>
-          <footer className="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-xs text-marca-texto-suave">
-            RANKEN Financeiro
+          <footer className="hidden md:block max-w-6xl mx-auto px-4 sm:px-6 py-8 text-xs text-marca-texto-suave">
+            © RANKEN 2026
           </footer>
           <ClientLayout />
         </AuthProvider>
