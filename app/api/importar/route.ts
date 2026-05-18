@@ -3,7 +3,6 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
-// PDF analysis pode ser lento — amplia timeout para 120s
 export const maxDuration = 120;
 
 const PROMPT = `Analise este extrato bancário e extraia TODOS os lançamentos. Ignore saldos do dia e saldo anterior. Para cada transação retorne um array JSON com objetos contendo:
@@ -19,28 +18,27 @@ export interface LancamentoSugerido {
 }
 
 export async function POST(req: NextRequest) {
-  await getSession(); // exige autenticação
+  await getSession();
 
-  let body: { pdf?: string; nome?: string };
+  let body: { pdf?: string };
   try { body = await req.json(); }
-  catch { return NextResponse.json({ erro: "JSON inválido" }, { status: 400 }); }
+  catch { return NextResponse.json({ error: "JSON inválido" }, { status: 400 }); }
 
-  const { pdf, nome } = body;
+  const { pdf } = body;
   if (!pdf || typeof pdf !== "string") {
-    return NextResponse.json({ erro: "Campo 'pdf' (base64) obrigatório" }, { status: 400 });
+    return NextResponse.json({ error: "Campo 'pdf' obrigatório" }, { status: 400 });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ erro: "ANTHROPIC_API_KEY não configurado no servidor" }, { status: 500 });
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY não configurado" }, { status: 500 });
   }
 
   const client = new Anthropic({ apiKey });
 
-  // ── Chama a API Anthropic ─────────────────────────────────────────────────
-  let msgContent: Anthropic.Messages.ContentBlock[];
+  let response;
   try {
-    const msg = await client.messages.create({
+    response = await client.messages.create({
       model: "claude-opus-4-5",
       max_tokens: 4096,
       messages: [
@@ -55,79 +53,37 @@ export async function POST(req: NextRequest) {
                 data: pdf,
               },
             } as Anthropic.Messages.DocumentBlockParam,
-            {
-              type: "text",
-              text: PROMPT,
-            },
+            { type: "text", text: PROMPT },
           ] as Anthropic.Messages.ContentBlockParam[],
         },
       ],
     });
-    msgContent = msg.content;
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ erro: `Erro na API Anthropic: ${errMsg}` }, { status: 502 });
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Erro na API Anthropic: ${msg}` }, { status: 502 });
   }
 
-  // ── Extrai texto bruto (todos os blocos de texto concatenados) ───────────
-  const rawText = msgContent
-    .filter((b) => b.type === "text")
-    .map((b) => (b as Anthropic.Messages.TextBlock).text)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const msgContent = response.content as any[];
+  const fullText = msgContent
+    .filter((b: any) => b.type === "text") // eslint-disable-line @typescript-eslint/no-explicit-any
+    .map((b: any) => b.text)               // eslint-disable-line @typescript-eslint/no-explicit-any
     .join("");
 
-  console.log("RAW:", rawText.substring(0, 200));
+  console.log("RAW:", fullText.substring(0, 300));
 
-  // ── Remove markdown code blocks se existirem ─────────────────────────────
-  const cleaned = rawText
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
+  const start = fullText.indexOf("[");
+  const end   = fullText.lastIndexOf("]");
 
-  // ── Localiza o array JSON pelos delimitadores [ e ] ──────────────────────
-  const startIndex = cleaned.indexOf("[");
-  const endIndex   = cleaned.lastIndexOf("]");
-
-  if (startIndex === -1 || endIndex === -1) {
-    console.log("Resposta bruta da IA (sem JSON encontrado):", rawText);
+  if (start === -1 || end === -1 || end <= start) {
     return NextResponse.json(
-      { erro: "Não foi possível identificar lançamentos neste PDF. Tente com outro arquivo." },
+      { error: "JSON não encontrado na resposta" },
       { status: 422 },
     );
   }
 
-  const jsonString = cleaned.substring(startIndex, endIndex + 1);
+  const jsonStr     = fullText.slice(start, end + 1);
+  const lancamentos = JSON.parse(jsonStr);
 
-  let lancamentos: LancamentoSugerido[];
-  try {
-    lancamentos = JSON.parse(jsonString);
-  } catch (parseErr) {
-    console.log("Resposta bruta da IA (falha no parse):", rawText);
-    console.log("Trecho extraído:", jsonString.slice(0, 500));
-    console.log("Erro:", parseErr);
-    return NextResponse.json(
-      { erro: "Não foi possível identificar lançamentos neste PDF. Tente com outro arquivo." },
-      { status: 422 },
-    );
-  }
-
-  // Sanitiza e valida cada item
-  const CATS_RECEITA = new Set(["Mensalidades", "Patrocínios", "Loja", "Confraternização", "Outros"]);
-  const CATS_DESPESA = new Set(["Time", "Marketing", "Tecnologia", "Operacional", "Confraternização", "Outros"]);
-
-  const resultado: LancamentoSugerido[] = lancamentos
-    .filter((l) => l && typeof l.descricao === "string" && l.valor > 0)
-    .map((l) => {
-      const tipo: "entrada" | "saida" = l.tipo === "entrada" ? "entrada" : "saida";
-      const cats = tipo === "entrada" ? CATS_RECEITA : CATS_DESPESA;
-      const cat = cats.has(l.categoria_sugerida) ? l.categoria_sugerida : "Outros";
-      return {
-        descricao: String(l.descricao).trim(),
-        valor: Math.round(Number(l.valor) * 100) / 100,
-        tipo,
-        categoria_sugerida: cat,
-        data: typeof l.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(l.data) ? l.data : null,
-      };
-    });
-
-  return NextResponse.json(resultado);
+  return NextResponse.json({ lancamentos });
 }

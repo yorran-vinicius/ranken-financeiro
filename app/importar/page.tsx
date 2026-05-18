@@ -99,10 +99,10 @@ export default function ImportarPage() {
       });
       const dados = await resp.json();
       if (!resp.ok) {
-        setErroUpload(dados.erro ?? "Erro ao analisar o PDF.");
+        setErroUpload(dados.error ?? dados.erro ?? "Erro ao analisar o PDF.");
         return;
       }
-      const lista: LancamentoSugerido[] = Array.isArray(dados) ? dados : [];
+      const lista: LancamentoSugerido[] = Array.isArray(dados.lancamentos) ? dados.lancamentos : [];
       if (lista.length === 0) {
         setErroUpload("Nenhum lançamento encontrado no documento.");
         return;

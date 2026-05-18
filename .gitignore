@@ -10,3 +10,5 @@ out
 # Manter arquivos de exemplo no repositório
 !.env*.example
 data/
+.vercel
+.env*.local
