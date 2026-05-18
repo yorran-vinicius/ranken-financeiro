@@ -68,12 +68,14 @@ export default function DashboardPage() {
   const [lancamentosAnt, setLancamentosAnt]     = useState<Lancamento[]>([]);
   const [lancamentosProximos, setLancamentosProximos] = useState<Lancamento[]>([]);
   const [carregando, setCarregando]             = useState(true);
+  const [erro, setErro]                         = useState<string | null>(null);
   const [config, setConfig]                     = useState<Record<string, string>>({});
   const [cidadeSelecionada, setCidadeSelecionada] = useState<string>("todas");
 
   // ── Carregar dados ────────────────────────────────────────────────────────
   const carregar = useCallback(async () => {
     setCarregando(true);
+    setErro(null);
     const hoje     = hojeISO();
     const daqui30  = adicionarDias(hoje, 30);
     const mesPrev  = mesAnteriorISO(mes);
@@ -94,6 +96,8 @@ export default function DashboardPage() {
       setConfig(dCfg && typeof dCfg === "object" ? dCfg : {});
       setLancamentosAnt(Array.isArray(dAnt)   ? dAnt   : []);
       setLancamentosProximos(Array.isArray(dProx) ? dProx : []);
+    } catch {
+      setErro("Erro ao carregar dados. Tente recarregar a página.");
     } finally {
       setCarregando(false);
     }
@@ -215,6 +219,27 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+
+      {/* ── Banner de erro ── */}
+      {erro && (
+        <div role="alert" className="flex items-center gap-3 bg-despesa-soft border border-despesa/30 rounded-xl px-4 py-3">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className="w-4 h-4 text-despesa shrink-0">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <p className="text-sm text-despesa font-medium">{erro}</p>
+          <button
+            type="button"
+            onClick={() => carregar()}
+            className="ml-auto text-xs text-despesa underline underline-offset-2 hover:opacity-80 transition whitespace-nowrap"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">

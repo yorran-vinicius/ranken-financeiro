@@ -146,7 +146,11 @@ function toUsuario(row: Record<string, unknown>): Usuario {
 const CATS_RECEITA = ["Mensalidades", "Patrocínios", "Loja", "Confraternização", "Outros"];
 const CATS_DESPESA = ["Time", "Marketing", "Tecnologia", "Operacional", "Confraternização", "Outros"];
 
+// Fix 1 — executa o schema check apenas uma vez por instância do servidor
+let inicializado = false;
+
 export async function garantirTabelas() {
+  if (inicializado) return;
   const sql = db();
 
   await sql`
@@ -229,6 +233,14 @@ export async function garantirTabelas() {
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS notas TEXT`,
   ]);
 
+  // Fix 2 — índices para queries frequentes
+  await Promise.allSettled([
+    sql`CREATE INDEX IF NOT EXISTS idx_lancamentos_data       ON lancamentos(data)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_lancamentos_tipo       ON lancamentos(tipo)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_lancamentos_cancelado  ON lancamentos(cancelado)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_lancamentos_criado_por ON lancamentos(criado_por_id)`,
+  ]);
+
   // Seed: usuários iniciais
   const existingUsers = await sql`SELECT login FROM usuarios WHERE login IN ('yorran', 'thales', 'laura')`;
   if (existingUsers.length < 3) {
@@ -266,38 +278,72 @@ export async function garantirTabelas() {
     sql`INSERT INTO configuracoes (chave, valor) VALUES ('nome_app', 'RANKEN Financeiro') ON CONFLICT (chave) DO NOTHING`,
     sql`INSERT INTO configuracoes (chave, valor) VALUES ('moeda', 'R$') ON CONFLICT (chave) DO NOTHING`,
     sql`INSERT INTO configuracoes (chave, valor) VALUES ('formato_data', 'dd/mm/aaaa') ON CONFLICT (chave) DO NOTHING`,
-    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_metas', 'false') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_metas', 'true') ON CONFLICT (chave) DO NOTHING`,
     sql`INSERT INTO configuracoes (chave, valor) VALUES ('meta_anual', '300000') ON CONFLICT (chave) DO NOTHING`,
-    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_equilibrio', 'false') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_equilibrio', 'true') ON CONFLICT (chave) DO NOTHING`,
     sql`INSERT INTO configuracoes (chave, valor) VALUES ('custo_fixo_mensal', '20000') ON CONFLICT (chave) DO NOTHING`,
-    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_cidade', 'false') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_cidade', 'true') ON CONFLICT (chave) DO NOTHING`,
     sql`INSERT INTO configuracoes (chave, valor) VALUES ('cidades', 'Maringá,Londrina,Curitiba,Geral') ON CONFLICT (chave) DO NOTHING`,
-    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_pdf', 'false') ON CONFLICT (chave) DO NOTHING`,
+    sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_pdf', 'true') ON CONFLICT (chave) DO NOTHING`,
     sql`INSERT INTO configuracoes (chave, valor) VALUES ('func_alertas', 'false') ON CONFLICT (chave) DO NOTHING`,
     sql`INSERT INTO configuracoes (chave, valor) VALUES ('alertas_limites', '{}') ON CONFLICT (chave) DO NOTHING`,
   ]);
+
+  // Fix 1 — marca como inicializado apenas após concluir com sucesso
+  inicializado = true;
 }
 
 // ─── Leitura de lançamentos ───────────────────────────────────────────────────
 
-export async function lerLancamentos(criadoPorId?: string): Promise<Lancamento[]> {
+/**
+ * Fix 3 — quando `mes` (YYYY-MM) é fornecido, filtra diretamente no SQL
+ * evitando carregar o histórico completo em memória.
+ */
+export async function lerLancamentos(
+  criadoPorId?: string,
+  mes?: string,
+): Promise<Lancamento[]> {
   await garantirTabelas();
   const sql = db();
-  const rows = criadoPorId
-    ? await sql`
-        SELECT l.*, u.nome AS criado_por_nome
-        FROM lancamentos l
-        LEFT JOIN usuarios u ON l.criado_por_id = u.id
-        WHERE l.cancelado = FALSE AND l.criado_por_id = ${criadoPorId}
-        ORDER BY l.data DESC, l.criado_em DESC
-      `
-    : await sql`
-        SELECT l.*, u.nome AS criado_por_nome
-        FROM lancamentos l
-        LEFT JOIN usuarios u ON l.criado_por_id = u.id
-        WHERE l.cancelado = FALSE
-        ORDER BY l.data DESC, l.criado_em DESC
-      `;
+  const prefixo = mes ? mes + "%" : null;
+
+  let rows;
+  if (criadoPorId && prefixo) {
+    rows = await sql`
+      SELECT l.*, u.nome AS criado_por_nome
+      FROM lancamentos l
+      LEFT JOIN usuarios u ON l.criado_por_id = u.id
+      WHERE l.cancelado = FALSE
+        AND l.criado_por_id = ${criadoPorId}
+        AND l.data LIKE ${prefixo}
+      ORDER BY l.data DESC, l.criado_em DESC
+    `;
+  } else if (criadoPorId) {
+    rows = await sql`
+      SELECT l.*, u.nome AS criado_por_nome
+      FROM lancamentos l
+      LEFT JOIN usuarios u ON l.criado_por_id = u.id
+      WHERE l.cancelado = FALSE AND l.criado_por_id = ${criadoPorId}
+      ORDER BY l.data DESC, l.criado_em DESC
+    `;
+  } else if (prefixo) {
+    rows = await sql`
+      SELECT l.*, u.nome AS criado_por_nome
+      FROM lancamentos l
+      LEFT JOIN usuarios u ON l.criado_por_id = u.id
+      WHERE l.cancelado = FALSE AND l.data LIKE ${prefixo}
+      ORDER BY l.data DESC, l.criado_em DESC
+    `;
+  } else {
+    rows = await sql`
+      SELECT l.*, u.nome AS criado_por_nome
+      FROM lancamentos l
+      LEFT JOIN usuarios u ON l.criado_por_id = u.id
+      WHERE l.cancelado = FALSE
+      ORDER BY l.data DESC, l.criado_em DESC
+    `;
+  }
+
   return rows.map(toRow);
 }
 

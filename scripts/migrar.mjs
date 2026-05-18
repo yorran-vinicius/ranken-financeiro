@@ -95,7 +95,18 @@ async function migrar() {
   for (const q of alteracoes) {
     try { await sql.unsafe(q); } catch { /* coluna já existe */ }
   }
-  console.log("✅  Tabela 'lancamentos' OK");
+
+  // Índices para queries frequentes
+  const indices = [
+    "CREATE INDEX IF NOT EXISTS idx_lancamentos_data       ON lancamentos(data)",
+    "CREATE INDEX IF NOT EXISTS idx_lancamentos_tipo       ON lancamentos(tipo)",
+    "CREATE INDEX IF NOT EXISTS idx_lancamentos_cancelado  ON lancamentos(cancelado)",
+    "CREATE INDEX IF NOT EXISTS idx_lancamentos_criado_por ON lancamentos(criado_por_id)",
+  ];
+  for (const q of indices) {
+    try { await sql.unsafe(q); } catch { /* índice já existe */ }
+  }
+  console.log("✅  Tabela 'lancamentos' OK (+ índices)");
 
   // ── Tabela: categorias ────────────────────────────────────────────────────────
   await sql`

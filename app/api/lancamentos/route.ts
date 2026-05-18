@@ -31,8 +31,9 @@ export async function GET(req: NextRequest) {
   // Editors only see their own lancamentos; masters can filter or see all
   const filtroUsuario = sessao.perfil === "master" ? userId : sessao.userId;
 
-  let lancamentos = await lerLancamentos(filtroUsuario);
-  if (mes) lancamentos = filtrarPorMes(lancamentos, mes);
+  // Fix 3 — filtra por mês diretamente no SQL quando possível
+  let lancamentos = await lerLancamentos(filtroUsuario, mes ?? undefined);
+  // filtrarPorMes em memória removido — lerLancamentos já filtra no banco
   if (!mes && dataInicio && dataFim) lancamentos = filtrarPorPeriodo(lancamentos, dataInicio, dataFim);
   if (categoria) lancamentos = filtrarPorCategoria(lancamentos, categoria);
   lancamentos = filtrarPorTipo(lancamentos, tipo);
