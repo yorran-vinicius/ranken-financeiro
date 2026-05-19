@@ -13,6 +13,8 @@ interface Props {
   onGerenciar?: (grupoId: string) => void;
   carregando?: boolean;
   mostrarCriador?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 /* ── Ícones ────────────────────────────────────────────────────────────────── */
@@ -197,7 +199,10 @@ export default function ListaLancamentos({
   onGerenciar,
   carregando,
   mostrarCriador,
+  selectedIds,
+  onToggleSelect,
 }: Props) {
+  const modoSelecao = !!onToggleSelect;
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
 
   if (carregando) {
@@ -229,14 +234,15 @@ export default function ListaLancamentos({
    *   Os px de Valor e Ações são suficientes para "− R$ 99.999,99" e 3 ícones.
    */
   const colsDesktop = mostrarCriador
-    ? "grid-cols-[100px_1fr_130px_100px_128px_96px]"
-    : "grid-cols-[100px_1fr_150px_128px_96px]";
+    ? (modoSelecao ? "grid-cols-[28px_100px_1fr_130px_100px_128px_96px]" : "grid-cols-[100px_1fr_130px_100px_128px_96px]")
+    : (modoSelecao ? "grid-cols-[28px_100px_1fr_150px_128px_96px]"       : "grid-cols-[100px_1fr_150px_128px_96px]");
 
   return (
     <div className="bg-white border border-marca-borda rounded-2xl overflow-hidden">
 
       {/* ── Cabeçalho (desktop) ── */}
       <div className={`hidden md:grid ${colsDesktop} gap-4 px-5 py-3 bg-marca-fundo text-[11px] font-semibold uppercase tracking-wider text-marca-texto-suave`}>
+        {modoSelecao && <span />}
         <span>Data</span>
         <span>Descrição</span>
         <span>Categoria</span>
@@ -265,6 +271,16 @@ export default function ListaLancamentos({
                   DESKTOP — grid de N colunas, tudo em linha
                  ════════════════════════════════════════ */}
               <div className={`hidden md:grid ${colsDesktop} gap-4 px-5 py-3.5 items-center`}>
+
+                {/* Col 0 — Checkbox (modo seleção) */}
+                {modoSelecao && (
+                  <input
+                    type="checkbox"
+                    checked={selectedIds?.has(l.id) ?? false}
+                    onChange={() => onToggleSelect?.(l.id)}
+                    className="w-4 h-4 rounded border-marca-borda accent-marca-preto cursor-pointer"
+                  />
+                )}
 
                 {/* Col 1 — Data */}
                 <span className="text-sm text-marca-texto-suave whitespace-nowrap tabular-nums">
@@ -351,6 +367,16 @@ export default function ListaLancamentos({
                   MOBILE — layout 2 colunas: conteúdo | valor+ações
                  ════════════════════════════════════════ */}
               <div className="md:hidden flex items-start gap-3 px-4 py-3.5">
+
+                {/* Checkbox mobile */}
+                {modoSelecao && (
+                  <input
+                    type="checkbox"
+                    checked={selectedIds?.has(l.id) ?? false}
+                    onChange={() => onToggleSelect?.(l.id)}
+                    className="mt-1 w-4 h-4 rounded border-marca-borda accent-marca-preto cursor-pointer shrink-0"
+                  />
+                )}
 
                 {/* Coluna esquerda — conteúdo */}
                 <div className="flex-1 min-w-0">

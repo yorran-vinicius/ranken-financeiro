@@ -45,6 +45,7 @@ export interface Lancamento {
   criadoEm: string;
   criadoPorId: string | null;
   criadoPorNome: string | null;
+  importId: string | null;
 }
 
 export interface Usuario {
@@ -102,6 +103,7 @@ function toRow(row: Record<string, unknown>): Lancamento {
     criadoEm:        tsISO(row.criado_em),
     criadoPorId:     (row.criado_por_id as string) ?? null,
     criadoPorNome:   (row.criado_por_nome as string) ?? null,
+    importId:        (row.import_id as string) ?? null,
   };
 }
 
@@ -237,6 +239,8 @@ export async function garantirTabelas() {
     sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS notas TEXT`,
     // Custo fixo automático
     sql`ALTER TABLE grupos_lancamento ADD COLUMN IF NOT EXISTS custo_fixo BOOLEAN NOT NULL DEFAULT FALSE`,
+    // Rastreamento de lote de importação
+    sql`ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS import_id UUID`,
   ]);
 
   // Fix 2 — índices para queries frequentes
@@ -403,18 +407,20 @@ export async function lerCriadorGrupo(grupoId: string): Promise<string | null> {
 // ─── Criação de lançamentos ───────────────────────────────────────────────────
 
 export async function adicionarAvulso(
-  input: Omit<Lancamento, "id" | "grupoId" | "cidade" | "notas" | "favorito" | "custoFixo" | "tipoLancamento" | "parcelaNum" | "parcelaTotal" | "cancelado" | "criadoEm" | "criadoPorId" | "criadoPorNome">,
+  input: Omit<Lancamento, "id" | "grupoId" | "cidade" | "notas" | "favorito" | "custoFixo" | "tipoLancamento" | "parcelaNum" | "parcelaTotal" | "cancelado" | "criadoEm" | "criadoPorId" | "criadoPorNome" | "importId">,
   criadoPorId?: string | null,
   cidade?: string | null,
+  importId?: string | null,
 ): Promise<Lancamento> {
   await garantirTabelas();
   const sql = db();
   const id = randomUUID();
   const uid = criadoPorId ?? null;
   const cid = cidade ?? null;
+  const iid = importId ?? null;
   const [row] = await sql`
-    INSERT INTO lancamentos (id, grupo_id, descricao, valor, tipo, categoria, data, tipo_lancamento, criado_por_id, cidade)
-    VALUES (${id}, NULL, ${input.descricao}, ${input.valor}, ${input.tipo}, ${input.categoria}, ${input.data}, 'avulso', ${uid}, ${cid})
+    INSERT INTO lancamentos (id, grupo_id, descricao, valor, tipo, categoria, data, tipo_lancamento, criado_por_id, cidade, import_id)
+    VALUES (${id}, NULL, ${input.descricao}, ${input.valor}, ${input.tipo}, ${input.categoria}, ${input.data}, 'avulso', ${uid}, ${cid}, ${iid})
     RETURNING *
   `;
   return { ...toRow(row), criadoPorNome: null };

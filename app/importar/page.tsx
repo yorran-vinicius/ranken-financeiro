@@ -48,6 +48,7 @@ export default function ImportarPage() {
   const [itens, setItens]             = useState<ItemResultado[]>([]);
   const [importando, setImportando]   = useState(false);
   const [resumo, setResumo]           = useState<{ ok: number; erro: number } | null>(null);
+  const [desfazerId, setDesfazerId]   = useState<string | null>(null);
 
   // ── Converte lancamentos brutos em itens editáveis ─────────────────────────
   useEffect(() => {
@@ -57,10 +58,17 @@ export default function ImportarPage() {
         _id: i,
         categoria: l.categoria_sugerida,
         dataEditada: l.data ?? hojeISO(),
-        selecionado: true,
+        selecionado: !l.duplicata, // duplicatas iniciam desmarcadas
       }))
     );
   }, [lancamentos]);
+
+  // ── Limpa o botão de desfazer após 10 minutos ──────────────────────────────
+  useEffect(() => {
+    if (!desfazerId) return;
+    const timer = setTimeout(() => setDesfazerId(null), 10 * 60 * 1000);
+    return () => clearTimeout(timer);
+  }, [desfazerId]);
 
   // ── Validação do arquivo ───────────────────────────────────────────────────
   function validar(file: File): string | null {
@@ -145,7 +153,10 @@ export default function ImportarPage() {
     if (selecionados.length === 0) return;
     setImportando(true);
 
-    // 1. Busca categorias disponíveis para fazer o match por nome
+    // 1. Gera UUID único para identificar este lote (permite desfazer)
+    const batchId = crypto.randomUUID();
+
+    // 2. Busca categorias disponíveis para fazer o match por nome
     let categorias: Array<{ id: number; nome: string; tipo: string; ativo: boolean }> = [];
     try {
       const catRes = await fetch("/api/configuracoes/categorias");
@@ -154,11 +165,11 @@ export default function ImportarPage() {
       // segue sem categorias — usará o nome sugerido diretamente
     }
 
-    // 2. Envia cada lançamento em paralelo com Promise.allSettled
+    // 3. Envia cada lançamento em paralelo com Promise.allSettled
     const promises: Promise<number>[] = selecionados.map(async (it): Promise<number> => {
       const tipoAPI = it.tipo === "entrada" ? "receita" : "despesa";
 
-      // 3. Match da categoria pelo nome; fallback para a primeira ativa do tipo
+      // 4. Match da categoria pelo nome; fallback para a primeira ativa do tipo
       const catsDoTipo = categorias.filter((c) => c.tipo === tipoAPI && c.ativo);
       const catMatch   = catsDoTipo.find((c) => c.nome === it.categoria) ?? catsDoTipo[0];
       const nomeCategoria = catMatch?.nome ?? it.categoria;
@@ -171,6 +182,7 @@ export default function ImportarPage() {
         data:           it.dataEditada || hojeISO(),
         cidade:         "Geral",
         tipoLancamento: "avulso",
+        import_id:      batchId,
       };
 
       const resp = await fetch("/api/lancamentos", {
@@ -185,7 +197,7 @@ export default function ImportarPage() {
       return it._id;
     });
 
-    // 4. Coleta resultados sem parar no primeiro erro
+    // 5. Coleta resultados sem parar no primeiro erro
     const results = await Promise.allSettled(promises);
 
     let ok = 0;
@@ -199,7 +211,7 @@ export default function ImportarPage() {
         idsImportados.add(result.value);
       } else {
         erros++;
-        // 5. Loga o primeiro lançamento com falha para debug
+        // 6. Loga o primeiro lançamento com falha para debug
         if (!primeiraFalhaLogada) {
           console.log("Primeiro lançamento com falha:", selecionados[i], result.reason);
           primeiraFalhaLogada = true;
@@ -210,7 +222,30 @@ export default function ImportarPage() {
     setImportando(false);
     setResumo({ ok, erro: erros });
     setItens((prev) => prev.filter((it) => !idsImportados.has(it._id)));
-    if (ok > 0) window.dispatchEvent(new CustomEvent("ranken:lancamento-adicionado"));
+    if (ok > 0) {
+      setDesfazerId(batchId);
+      window.dispatchEvent(new CustomEvent("ranken:lancamento-adicionado"));
+    }
+  }
+
+  // ── Desfazer importação ────────────────────────────────────────────────────
+  async function desfazer() {
+    if (!desfazerId) return;
+    try {
+      const resp = await fetch("/api/importar/desfazer", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ import_id: desfazerId }),
+      });
+      if (resp.ok) {
+        const { deletados } = await resp.json();
+        setDesfazerId(null);
+        setResumo(null);
+        if (deletados > 0) window.dispatchEvent(new CustomEvent("ranken:lancamento-adicionado"));
+      }
+    } catch {
+      // silencioso
+    }
   }
 
   const totalSelecionados = itens.filter((it) => it.selecionado).length;
@@ -305,11 +340,24 @@ export default function ImportarPage() {
 
       {/* ── Resumo de importação ── */}
       {resumo && (
-        <div className={`rounded-xl px-4 py-3 text-sm font-medium flex items-center gap-2 ${
+        <div className={`rounded-xl px-4 py-3 text-sm font-medium flex items-center flex-wrap gap-2 ${
           resumo.erro === 0 ? "bg-receita-soft text-receita" : "bg-despesa-soft text-despesa"
         }`}>
-          {resumo.ok > 0 && <span>✓ {resumo.ok} lançamento{resumo.ok !== 1 ? "s" : ""} importado{resumo.ok !== 1 ? "s" : ""}.</span>}
-          {resumo.erro > 0 && <span>✗ {resumo.erro} falhou. Verifique os dados e tente novamente.</span>}
+          {resumo.ok > 0 && (
+            <span>✓ {resumo.ok} lançamento{resumo.ok !== 1 ? "s" : ""} importado{resumo.ok !== 1 ? "s" : ""}.</span>
+          )}
+          {resumo.erro > 0 && (
+            <span>✗ {resumo.erro} falhou. Verifique os dados e tente novamente.</span>
+          )}
+          {resumo.ok > 0 && desfazerId && (
+            <button
+              type="button"
+              onClick={desfazer}
+              className="ml-auto text-xs underline underline-offset-2 hover:opacity-70 transition whitespace-nowrap"
+            >
+              Desfazer importação
+            </button>
+          )}
         </div>
       )}
 
@@ -372,6 +420,13 @@ export default function ImportarPage() {
                       }`}>
                         {isReceita ? "Receita" : "Despesa"}
                       </span>
+
+                      {/* Badge duplicata */}
+                      {it.duplicata && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200 whitespace-nowrap">
+                          Já importado
+                        </span>
+                      )}
 
                       {/* Categoria */}
                       <select

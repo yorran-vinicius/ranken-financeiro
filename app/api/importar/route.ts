@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { neon } from '@neondatabase/serverless'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
@@ -14,6 +15,7 @@ export interface LancamentoSugerido {
   tipo: 'entrada' | 'saida'
   categoria_sugerida: string
   data: string | null
+  duplicata?: boolean
 }
 
 export async function POST(req: NextRequest) {
@@ -63,8 +65,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'JSON não encontrado', raw: raw.substring(0, 200) }, { status: 422 })
     }
 
-    const lancamentos = JSON.parse(raw.slice(start, end + 1))
-    return NextResponse.json({ lancamentos })
+    const lancamentos: LancamentoSugerido[] = JSON.parse(raw.slice(start, end + 1))
+
+    // ── Detectar duplicatas no banco ─────────────────────────────────────────
+    let lancamentosComDuplicata: LancamentoSugerido[] = lancamentos
+    try {
+      const sql = neon(process.env.DATABASE_URL!)
+      lancamentosComDuplicata = await Promise.all(
+        lancamentos.map(async (l) => {
+          if (!l.data) return { ...l, duplicata: false }
+          const tipoDb = l.tipo === 'entrada' ? 'receita' : 'despesa'
+          const rows = await sql`
+            SELECT id FROM lancamentos
+            WHERE descricao = ${l.descricao}
+              AND valor     = ${l.valor}
+              AND data      = ${l.data}
+              AND tipo      = ${tipoDb}
+              AND cancelado = FALSE
+            LIMIT 1
+          `
+          return { ...l, duplicata: rows.length > 0 }
+        })
+      )
+    } catch (dbErr) {
+      console.error('Erro ao verificar duplicatas:', dbErr)
+      // Continua sem marcar duplicatas
+    }
+
+    return NextResponse.json({ lancamentos: lancamentosComDuplicata })
 
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)

@@ -33,6 +33,12 @@ export default function LancamentosPage() {
   const [categorias, setCategorias]     = useState<string[]>([]);
   const [usuarios, setUsuarios]         = useState<{ id: string; nome: string }[]>([]);
 
+  // ── Seleção em lote ────────────────────────────────────────────────────────
+  const [selectedIds,      setSelectedIds]      = useState<Set<string>>(new Set());
+  const [batchCategoria,   setBatchCategoria]   = useState("");
+  const [batchTipoLanc,    setBatchTipoLanc]    = useState("");
+  const [aplicandoLote,    setAplicandoLote]    = useState(false);
+
   // Estado do modal de edição / modelo
   const [modalEditar, setModalEditar] = useState<{
     editandoId?: string;
@@ -138,6 +144,39 @@ export default function LancamentosPage() {
 
   function exportar() {
     window.location.href = `/api/exportar?mes=${mes}`;
+  }
+
+  // ── Seleção e lote ─────────────────────────────────────────────────────────
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function aplicarLote() {
+    if (selectedIds.size === 0) return;
+    if (!batchCategoria && !batchTipoLanc) return;
+    setAplicandoLote(true);
+    try {
+      const campos: Record<string, string> = {};
+      if (batchCategoria) campos.categoria         = batchCategoria;
+      if (batchTipoLanc)  campos.tipo_lancamento   = batchTipoLanc;
+      const resp = await fetch("/api/lancamentos/lote", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [...selectedIds], campos }),
+      });
+      if (resp.ok) {
+        setSelectedIds(new Set());
+        setBatchCategoria("");
+        setBatchTipoLanc("");
+        carregar();
+      }
+    } finally {
+      setAplicandoLote(false);
+    }
   }
 
   // ── Filtro de busca local ───────────────────────────────────────────────────
@@ -344,6 +383,63 @@ export default function LancamentosPage() {
         )}
       </div>
 
+      {/* ── Barra de ação em lote ── */}
+      {selectedIds.size >= 2 && (
+        <div className="sticky top-0 z-30 bg-white border border-marca-borda rounded-xl px-4 py-3 flex flex-wrap items-center gap-3 shadow-sm">
+          <span className="text-sm font-semibold text-marca-texto">
+            {selectedIds.size} selecionados
+          </span>
+          <span className="text-marca-borda hidden sm:inline">|</span>
+
+          {/* Categoria */}
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-marca-texto-suave whitespace-nowrap">Categoria:</label>
+            <select
+              value={batchCategoria}
+              onChange={(e) => setBatchCategoria(e.target.value)}
+              className="px-2 py-1.5 text-xs rounded-lg border border-marca-borda bg-white focus:outline-none focus:ring-2 focus:ring-marca-preto"
+            >
+              <option value="">— manter —</option>
+              {categorias.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tipo de lançamento */}
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-marca-texto-suave whitespace-nowrap">Tipo:</label>
+            <select
+              value={batchTipoLanc}
+              onChange={(e) => setBatchTipoLanc(e.target.value)}
+              className="px-2 py-1.5 text-xs rounded-lg border border-marca-borda bg-white focus:outline-none focus:ring-2 focus:ring-marca-preto"
+            >
+              <option value="">— manter —</option>
+              <option value="avulso">Avulso</option>
+              <option value="recorrente">Recorrente</option>
+              <option value="parcelado">Parcelado</option>
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={aplicarLote}
+            disabled={aplicandoLote || (!batchCategoria && !batchTipoLanc)}
+            className="px-3 py-1.5 rounded-lg bg-marca-preto text-white text-xs font-medium hover:opacity-90 disabled:opacity-40 transition"
+          >
+            {aplicandoLote ? "Aplicando..." : "Aplicar"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setSelectedIds(new Set()); setBatchCategoria(""); setBatchTipoLanc(""); }}
+            className="ml-auto text-xs text-marca-texto-suave hover:text-marca-preto transition"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+
       {/* Lista */}
       <ListaLancamentos
         lancamentos={lancamentosFiltrados}
@@ -354,6 +450,8 @@ export default function LancamentosPage() {
         onGerenciar={(gid) => setGrupoAberto(gid)}
         carregando={carregando}
         mostrarCriador={isMaster}
+        selectedIds={selectedIds}
+        onToggleSelect={toggleSelect}
       />
 
       <AnaliseCategoria refreshKey={versao} />

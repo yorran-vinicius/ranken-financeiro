@@ -70,7 +70,8 @@ export async function POST(req: NextRequest) {
   if (!nomesAtivos.includes(categoria))
     return NextResponse.json({ erro: "Categoria inválida para o tipo" }, { status: 400 });
 
-  const cidade = typeof b.cidade === "string" && b.cidade.trim() ? b.cidade.trim() : null;
+  const cidade   = typeof b.cidade    === "string" && b.cidade.trim()    ? b.cidade.trim()    : null;
+  const importId = typeof b.import_id === "string" && b.import_id.trim() ? b.import_id.trim() : null;
 
   // ── AVULSO ────────────────────────────────────────────────────────────────
   if (tipoLancamento === "avulso") {
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
       { descricao: descricao.trim(), valor: Math.round(valorNum * 100) / 100, tipo, categoria, data: b.data as string },
       criadoPorId,
       cidade,
+      importId,
     );
     return NextResponse.json(novo, { status: 201 });
   }
