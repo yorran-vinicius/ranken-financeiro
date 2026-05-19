@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import AlertasDashboard from "@/components/AlertasDashboard";
 import CardsResumo from "@/components/CardsResumo";
 import FiltroMes from "@/components/FiltroMes";
 import GraficoBarras from "@/components/GraficoBarras";
@@ -239,6 +240,14 @@ export default function DashboardPage() {
         labelMesAnt={labelMesAnt}
         lancamentosHoje={[]}
         mostrarHoje={false}
+      />
+
+      {/* ── Alertas automáticos (dismissíveis) ── */}
+      <AlertasDashboard
+        totalReceitas={totalReceitas}
+        totalDespesas={totalDespesas}
+        metaAnual={metaAnual}
+        todosLancamentos={todosLancamentos}
       />
 
       {/* ── Alertas ── */}

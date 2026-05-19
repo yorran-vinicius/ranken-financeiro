@@ -18,6 +18,14 @@ export default function LancamentosPage() {
   const isMaster = usuario?.perfil === "master";
 
   const [mes, setMes]             = useState(mesAtualISO());
+
+  // Lê o parâmetro ?mes=YYYY-MM da URL ao montar (ex: vindo da busca global)
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const m = p.get("mes");
+    if (m && /^\d{4}-\d{2}$/.test(m)) setMes(m);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [tipo, setTipo]           = useState<FiltroTipo>("todos");
   const [busca, setBusca]         = useState("");
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);

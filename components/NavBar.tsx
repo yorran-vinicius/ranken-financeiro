@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import BuscaGlobal from "@/components/BuscaGlobal";
 
 const ITENS = [
   { href: "/",            rotulo: "Dashboard"    },
@@ -67,9 +68,10 @@ export default function NavBar() {
           )}
         </nav>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
+          <BuscaGlobal />
           {usuario && (
-            <span className="hidden sm:block text-sm text-white/70">
+            <span className="hidden sm:block text-sm text-white/70 ml-2">
               {usuario.nome}
               <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white/10 text-white/60 uppercase tracking-wide">
                 {usuario.perfil}

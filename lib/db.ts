@@ -754,3 +754,27 @@ export async function listarCustosFixos(): Promise<GrupoLancamento[]> {
   `;
   return rows.map((r) => toGrupo(r as Record<string, unknown>));
 }
+
+// ─── Busca global ─────────────────────────────────────────────────────────────
+
+/** Busca lançamentos por descrição ou categoria usando ILIKE. */
+export async function buscarLancamentos(q: string, limite = 20): Promise<Lancamento[]> {
+  await garantirTabelas();
+  const sql = db();
+  const termo = `%${q}%`;
+  const rows = await sql`
+    SELECT l.*, u.nome AS criado_por_nome,
+           COALESCE(g.custo_fixo, FALSE) AS custo_fixo_grupo
+    FROM lancamentos l
+    LEFT JOIN usuarios u ON l.criado_por_id = u.id
+    LEFT JOIN grupos_lancamento g ON l.grupo_id = g.id
+    WHERE l.cancelado = FALSE
+      AND (
+        l.descricao ILIKE ${termo}
+        OR l.categoria ILIKE ${termo}
+      )
+    ORDER BY l.data DESC
+    LIMIT ${limite}
+  `;
+  return rows.map((r) => toRow(r as Record<string, unknown>));
+}
