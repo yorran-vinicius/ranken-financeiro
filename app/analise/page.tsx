@@ -207,7 +207,7 @@ export default function AnalisePage() {
       {temBreakdown && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[
-            { label: "Receitas", fixo: receitasFixas, avulso: receitasAvulsas, cor: "text-receita", avulsoLabel: "Avulso", mostrarAportes: true },
+            { label: "Receitas", fixo: receitasFixas, avulso: receitasAvulsas, cor: "text-receita", avulsoLabel: "Operacional", mostrarAportes: true },
             { label: "Despesas", fixo: despesasFixas, avulso: despesasAvulsas, cor: "text-despesa", avulsoLabel: "Avulso / Parcelado", mostrarAportes: false },
           ].map(({ label, fixo, avulso, cor, avulsoLabel, mostrarAportes }) => (
             <div key={label} className="bg-white border border-marca-borda rounded-2xl p-4">
@@ -247,9 +247,15 @@ export default function AnalisePage() {
             {breakdownCidade.map(({ cid, r, d }) => (
               <button key={cid} type="button" onClick={() => setCidadeSelecionada(cid)}
                 className="bg-white border border-marca-borda rounded-xl p-3.5 text-left hover:border-marca-preto transition">
-                <p className="text-xs font-semibold text-marca-texto">{cid}</p>
-                <p className="text-sm font-bold text-receita mt-1">{formatarBRL(r)}</p>
-                <p className="text-xs text-despesa">{formatarBRL(d)}</p>
+                <p className="text-xs font-semibold text-marca-texto mb-2">{cid}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wide text-marca-texto-suave">Receitas</span>
+                  <span className="text-sm font-semibold text-receita">{formatarBRL(r)}</span>
+                </div>
+                <div className="flex items-center justify-between mt-0.5">
+                  <span className="text-[10px] uppercase tracking-wide text-marca-texto-suave">Despesas</span>
+                  <span className="text-xs font-semibold text-despesa">{formatarBRL(d)}</span>
+                </div>
               </button>
             ))}
           </div>

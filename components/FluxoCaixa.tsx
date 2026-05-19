@@ -54,6 +54,11 @@ export default function FluxoCaixa({ lancamentos, saldoAtual }: Props) {
   const saldoProjetado = dias.length > 0 ? dias[dias.length - 1].saldoDia : saldoAtual;
   const saldoProjetadoPositivo = saldoProjetado >= 0;
 
+  // Entradas futuras manuais = receitas não-recorrentes nos próximos 30 dias
+  const entradasFuturasManuais = lancamentos.filter(
+    (l) => l.tipo === "receita" && l.tipoLancamento !== "recorrente",
+  ).length;
+
   return (
     <div className="bg-white border border-marca-borda rounded-2xl overflow-hidden">
       {/* Header */}
@@ -129,6 +134,13 @@ export default function FluxoCaixa({ lancamentos, saldoAtual }: Props) {
             );
           })}
         </ul>
+      )}
+
+      {/* Nota: só custos fixos, sem entradas manuais */}
+      {lancamentos.length > 0 && entradasFuturasManuais === 0 && (
+        <p className="px-5 py-2 text-xs text-marca-texto-suave italic border-t border-marca-borda">
+          Projeção baseada nos custos fixos recorrentes. Adicione receitas previstas para melhorar a precisão.
+        </p>
       )}
 
       {/* Final projected balance row */}

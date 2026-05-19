@@ -51,9 +51,11 @@ export default function CardsResumo({
   despesasAnt,
   labelMesAnt,
 }: Props) {
-  // Saldo = receita operacional − despesas (aportes não entram)
-  const saldo = totalReceitas - totalDespesas;
+  // Saldo operacional = receita operacional − despesas (aportes não entram)
+  const saldo         = totalReceitas - totalDespesas;
   const saldoPositivo = saldo >= 0;
+  // Caixa total inclui aportes — usado apenas para a nota explicativa
+  const caixaComAportes = saldo + totalAportes;
   const saldoAnt =
     receitasAnt !== undefined && despesasAnt !== undefined
       ? receitasAnt - despesasAnt
@@ -114,6 +116,12 @@ export default function CardsResumo({
         >
           {formatarBRL(saldo)}
         </p>
+        {/* Nota: saldo negativo mas caixa positivo com aportes */}
+        {!saldoPositivo && totalAportes > 0 && caixaComAportes > 0 && (
+          <p className="text-xs text-gray-500 mt-1 leading-snug">
+            💡 Caixa disponível positivo com aportes dos sócios (+{formatarBRL(totalAportes)})
+          </p>
+        )}
         <div className="mt-1">
           <VariacaoBadge
             atual={saldo}

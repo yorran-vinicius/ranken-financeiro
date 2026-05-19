@@ -54,21 +54,31 @@ export default function GraficoBarras({ lancamentos, meses = 6 }: Props) {
   }
 
   const dados = pontos.map((p) => mapa.get(p.chave)!);
-  const temDados = dados.some((d) => d.receitas > 0 || d.despesas > 0);
+
+  // Filtra meses sem nenhum dado para não mostrar barras zeradas
+  const dadosFiltrados = dados.filter((d) => d.receitas > 0 || d.despesas > 0);
 
   return (
     <div className="bg-white border border-marca-borda rounded-2xl p-5">
       <h3 className="text-sm font-semibold text-marca-texto mb-2">
         Evolução mensal — últimos {meses} meses
       </h3>
-      {!temDados ? (
-        <div className="h-48 flex items-center justify-center text-sm text-marca-texto-suave">
-          Sem dados ainda.
+      {dadosFiltrados.length < 2 ? (
+        <div className="h-48 flex flex-col items-center justify-center gap-1.5 text-marca-texto-suave">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+            className="w-8 h-8 opacity-40">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6"  y1="20" x2="6"  y2="14"/>
+          </svg>
+          <span className="text-sm">Dados insuficientes para o gráfico</span>
+          <span className="text-xs opacity-70">Aparecerá após 2 meses de registros</span>
         </div>
       ) : (
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={dados} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <BarChart data={dadosFiltrados} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f1f1" />
               <XAxis dataKey="rotulo" tick={{ fontSize: 12 }} stroke="#737373" />
               <YAxis

@@ -163,36 +163,115 @@ export default function AlertasDashboard({
     setFechados((prev) => new Set([...prev, id]));
   }
 
+  function fecharTodos() {
+    setFechados((prev) => new Set([...prev, ...visiveis.map((a) => a.id)]));
+  }
+
+  // ── Card único quando há apenas 1 alerta ──────────────────────────────────
+  if (visiveis.length === 1) {
+    const a = visiveis[0];
+    const s = ESTILOS[a.id];
+    return (
+      <div className={`flex items-start gap-3 border rounded-xl px-4 py-3 ${s.wrap}`}>
+        <IconeAlerta cor={s.icone} />
+        <div className="flex-1 min-w-0">
+          <p className={`text-sm font-medium ${s.titulo}`}>{a.titulo}</p>
+          <p className={`text-xs mt-0.5 ${s.desc}`}>{a.descricao}</p>
+        </div>
+        <BotaoFechar onClick={() => fechar(a.id)} />
+      </div>
+    );
+  }
+
+  // ── Card colapsável quando há 2+ alertas ──────────────────────────────────
+  return <AlertasColapsaveis visiveis={visiveis} fecharTodos={fecharTodos} />;
+}
+
+// ── Subcomponentes ────────────────────────────────────────────────────────────
+
+function BotaoFechar({ onClick }: { onClick: () => void }) {
   return (
-    <div className="space-y-2">
-      {visiveis.map((a) => {
-        const s = ESTILOS[a.id];
-        return (
-          <div
-            key={a.id}
-            className={`flex items-start gap-3 border rounded-xl px-4 py-3 ${s.wrap}`}
-          >
-            <IconeAlerta cor={s.icone} />
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium ${s.titulo}`}>{a.titulo}</p>
-              <p className={`text-xs mt-0.5 ${s.desc}`}>{a.descricao}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => fechar(a.id)}
-              aria-label="Fechar alerta"
-              className="shrink-0 text-marca-texto-suave/60 hover:text-marca-texto transition ml-1"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className="w-3.5 h-3.5">
-                <line x1="18" y1="6"  x2="6"  y2="18"/>
-                <line x1="6"  y1="6"  x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-        );
-      })}
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Fechar alerta"
+      className="shrink-0 p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center text-marca-texto-suave/60 hover:text-marca-texto transition"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+        className="w-3.5 h-3.5">
+        <line x1="18" y1="6"  x2="6"  y2="18"/>
+        <line x1="6"  y1="6"  x2="18" y2="18"/>
+      </svg>
+    </button>
+  );
+}
+
+function AlertasColapsaveis({
+  visiveis,
+  fecharTodos,
+}: {
+  visiveis: Alerta[];
+  fecharTodos: () => void;
+}) {
+  const [expandido, setExpandido] = useState(false);
+
+  return (
+    <div className="border border-[#F9A825]/40 bg-[#FFF8E1] rounded-xl px-4 py-3">
+      {/* Header do grupo */}
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setExpandido((v) => !v)}
+          className="flex-1 flex items-center gap-2 text-left"
+          aria-expanded={expandido}
+        >
+          <IconeAlerta cor="#F9A825" />
+          <span className="text-sm font-medium text-[#6D4C00]">
+            {visiveis.length} atenções no período
+          </span>
+          {/* Chevron */}
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="#6D4C00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className={`w-4 h-4 ml-1 shrink-0 transition-transform duration-200 ${expandido ? "rotate-180" : ""}`}>
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {/* Fechar todos */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); fecharTodos(); }}
+          aria-label="Fechar todos os alertas"
+          className="shrink-0 p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center text-[#6D4C00]/50 hover:text-[#6D4C00] transition ml-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            className="w-3.5 h-3.5">
+            <line x1="18" y1="6"  x2="6"  y2="18"/>
+            <line x1="6"  y1="6"  x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Alertas individuais (visíveis quando expandido) */}
+      {expandido && (
+        <div className="mt-3 space-y-2 border-t border-[#F9A825]/30 pt-3">
+          {visiveis.map((a) => {
+            const s = ESTILOS[a.id];
+            return (
+              <div key={a.id}
+                className={`flex items-start gap-2 border rounded-lg px-3 py-2 ${s.wrap}`}>
+                <IconeAlerta cor={s.icone} />
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium ${s.titulo}`}>{a.titulo}</p>
+                  <p className={`text-xs mt-0.5 ${s.desc}`}>{a.descricao}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

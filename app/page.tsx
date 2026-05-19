@@ -240,6 +240,11 @@ export default function DashboardPage() {
         labelMesAnt={labelMesAnt}
         lancamentosHoje={[]}
         mostrarHoje={false}
+        metaAnual={metaAnual}
+        receitaAcumuladaAno={todosLancamentos
+          .filter((l) => l.tipo === "receita" && l.categoria !== "Aporte" && !l.cancelado
+            && l.data.startsWith(String(new Date().getFullYear())))
+          .reduce((s, l) => s + l.valor, 0)}
       />
 
       {/* ── Alertas automáticos (dismissíveis) ── */}

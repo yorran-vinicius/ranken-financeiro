@@ -2,60 +2,63 @@
 
 import { useEffect, useState } from "react";
 
-const STORAGE_KEY = "ranken:install-banner-v1";
+const STORAGE_KEY = "pwa-banner-dismissed";
 
 type Plataforma = "ios" | "android";
 
-// Evento beforeinstallprompt (não está nos tipos padrão do TS)
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
 export default function BannerInstalar() {
-  const [visivel,       setVisivel]       = useState(false);
-  const [plataforma,    setPlataforma]    = useState<Plataforma | null>(null);
-  const [promptEvento,  setPromptEvento]  = useState<BeforeInstallPromptEvent | null>(null);
+  // Começa como "dispensado" para evitar flash de hidratação no SSR.
+  // O useEffect corrige para false se o usuário ainda não dispensou.
+  const [bannerDismissed, setBannerDismissed] = useState(true);
+  const [plataforma,      setPlataforma]      = useState<Plataforma | null>(null);
+  const [promptEvento,    setPromptEvento]    = useState<BeforeInstallPromptEvent | null>(null);
+
+  const dismissBanner = () => {
+    localStorage.setItem(STORAGE_KEY, "true");
+    setBannerDismissed(true);
+  };
 
   useEffect(() => {
-    // Já dispensou o banner antes → não mostrar
-    if (localStorage.getItem(STORAGE_KEY)) return;
+    // Se já foi dispensado, nunca mostrar novamente
+    const dismissed = localStorage.getItem(STORAGE_KEY) === "true";
+    if (dismissed) return; // mantém bannerDismissed = true
 
     const ua    = navigator.userAgent;
     const isIOS = /iPhone|iPad|iPod/i.test(ua);
 
     if (isIOS) {
-      // Não mostrar se já está instalado em modo standalone
+      // Não mostrar se já está instalado (modo standalone)
       if ("standalone" in navigator && (navigator as { standalone?: boolean }).standalone) return;
       setPlataforma("ios");
-      setVisivel(true);
+      setBannerDismissed(false); // torna visível
       return;
     }
 
-    // Android / desktop Chrome: aguarda beforeinstallprompt
+    // Android / Chrome desktop: aguarda beforeinstallprompt
     function onPrompt(e: Event) {
       e.preventDefault();
       setPromptEvento(e as BeforeInstallPromptEvent);
       setPlataforma("android");
-      setVisivel(true);
+      setBannerDismissed(false); // torna visível
     }
     window.addEventListener("beforeinstallprompt", onPrompt);
     return () => window.removeEventListener("beforeinstallprompt", onPrompt);
   }, []);
 
-  function fechar() {
-    localStorage.setItem(STORAGE_KEY, "1");
-    setVisivel(false);
-  }
-
   async function instalar() {
-    if (!promptEvento) { fechar(); return; }
+    if (!promptEvento) { dismissBanner(); return; }
     await promptEvento.prompt();
     const { outcome } = await promptEvento.userChoice;
-    if (outcome === "accepted") fechar();
+    if (outcome === "accepted") dismissBanner();
   }
 
-  if (!visivel) return null;
+  // Enquanto dispensado (ou ainda avaliando no SSR), não renderiza nada
+  if (bannerDismissed) return null;
 
   return (
     <div
@@ -67,7 +70,7 @@ export default function BannerInstalar() {
         R
       </span>
 
-      {/* Texto (muda por plataforma) */}
+      {/* Texto */}
       <p className="flex-1 min-w-0 text-sm text-white/90 leading-snug">
         {plataforma === "ios" ? (
           <>
@@ -85,7 +88,7 @@ export default function BannerInstalar() {
         )}
       </p>
 
-      {/* Botão Instalar (só Android — iOS instrui via texto) */}
+      {/* Botão Instalar (só Android) */}
       {plataforma === "android" && promptEvento && (
         <button
           type="button"
@@ -96,12 +99,12 @@ export default function BannerInstalar() {
         </button>
       )}
 
-      {/* Fechar */}
+      {/* Fechar (×) — persiste no localStorage */}
       <button
         type="button"
-        onClick={fechar}
+        onClick={dismissBanner}
         aria-label="Fechar aviso de instalação"
-        className="shrink-0 p-1 text-white/50 hover:text-white transition"
+        className="shrink-0 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-white/50 hover:text-white transition"
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"

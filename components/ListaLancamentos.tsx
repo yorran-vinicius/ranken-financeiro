@@ -115,6 +115,9 @@ function BadgeTipo({ l }: { l: Lancamento }) {
 }
 
 /* ── Botões de ação reutilizáveis ──────────────────────────────────────────── */
+// Touch targets ≥ 44×44 px em todos os botões (acessibilidade mobile)
+const btnBase = "flex items-center justify-center w-11 h-11 rounded-lg transition-colors";
+
 function BotoesAcao({
   l, isFavorito, isAvulso, isGrupo,
   onToggleFavorito, onEditar, onGerenciar,
@@ -130,7 +133,7 @@ function BotoesAcao({
   onConfirmar: () => void;
 }) {
   return (
-    <>
+    <div className="flex items-center gap-1">
       {/* Estrela */}
       {onToggleFavorito && (
         <button
@@ -138,10 +141,10 @@ function BotoesAcao({
           onClick={() => onToggleFavorito(l.id, !isFavorito)}
           aria-label={isFavorito ? "Desfavoritar" : "Favoritar"}
           title={isFavorito ? "Desfavoritar" : "Favoritar"}
-          className={`p-1.5 rounded transition-colors ${
+          className={`${btnBase} ${
             isFavorito
-              ? "text-amber-400 hover:text-amber-600"
-              : "text-marca-texto-suave hover:text-amber-400"
+              ? "text-amber-400 hover:bg-amber-50 hover:text-amber-600"
+              : "text-marca-texto-suave hover:bg-marca-fundo hover:text-amber-400"
           }`}
         >
           <IconeEstrela preenchida={isFavorito} />
@@ -149,13 +152,13 @@ function BotoesAcao({
       )}
 
       {isGrupo ? (
-        /* Gerenciar grupo */
+        /* Gerenciar grupo (recorrente/parcelado) */
         <button
           type="button"
           onClick={() => l.grupoId && onGerenciar?.(l.grupoId)}
           aria-label="Gerenciar recorrência"
           title="Gerenciar"
-          className="p-1.5 rounded text-marca-texto-suave hover:text-marca-preto transition-colors"
+          className={`${btnBase} text-marca-texto-suave hover:bg-marca-fundo hover:text-marca-preto`}
         >
           <IconeGerenciar />
         </button>
@@ -168,24 +171,24 @@ function BotoesAcao({
               onClick={() => onEditar(l)}
               aria-label="Editar"
               title="Editar"
-              className="p-1.5 rounded text-marca-texto-suave hover:text-marca-preto transition-colors"
+              className={`${btnBase} text-marca-texto-suave hover:bg-marca-fundo hover:text-marca-preto`}
             >
               <IconeEditar />
             </button>
           )}
-          {/* Remover */}
+          {/* Remover — abre confirmação inline (não usa window.confirm) */}
           <button
             type="button"
             onClick={onConfirmar}
             aria-label="Remover"
             title="Remover"
-            className="p-1.5 rounded text-marca-texto-suave hover:text-despesa transition-colors"
+            className={`${btnBase} text-marca-texto-suave hover:bg-red-50 hover:text-despesa active:bg-red-100`}
           >
             <IconeLixeira />
           </button>
         </>
       )}
-    </>
+    </div>
   );
 }
 
@@ -331,8 +334,8 @@ export default function ListaLancamentos({
                   {valorFmt}
                 </span>
 
-                {/* Col N — Ações (alinhadas à direita, sem quebra de linha) */}
-                <div className="flex items-center justify-end gap-0 whitespace-nowrap">
+                {/* Col N — Ações (alinhadas à direita) */}
+                <div className="flex items-center justify-end whitespace-nowrap">
                   {confirmando ? (
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs text-marca-texto-suave whitespace-nowrap">Remover?</span>
@@ -448,15 +451,13 @@ export default function ListaLancamentos({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-0">
-                      <BotoesAcao
-                        l={l} isFavorito={isFavorito} isAvulso={isAvulso} isGrupo={isGrupo}
-                        onToggleFavorito={onToggleFavorito}
-                        onEditar={onEditar}
-                        onGerenciar={onGerenciar}
-                        onConfirmar={() => setConfirmandoId(l.id)}
-                      />
-                    </div>
+                    <BotoesAcao
+                      l={l} isFavorito={isFavorito} isAvulso={isAvulso} isGrupo={isGrupo}
+                      onToggleFavorito={onToggleFavorito}
+                      onEditar={onEditar}
+                      onGerenciar={onGerenciar}
+                      onConfirmar={() => setConfirmandoId(l.id)}
+                    />
                   )}
                 </div>
               </div>
