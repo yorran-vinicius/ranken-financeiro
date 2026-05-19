@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { stripe } from '@/lib/stripe'
+import { getStripe } from '@/lib/stripe'
 import { neon } from '@neondatabase/serverless'
 import { enviarEmail } from '@/lib/email'
 
@@ -16,6 +16,7 @@ function brl(n: number) {
 }
 
 export async function POST(req: NextRequest) {
+  const stripe = getStripe()
   const body = await req.text()
   const sig  = req.headers.get('stripe-signature') ?? ''
 

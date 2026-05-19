@@ -1,7 +1,5 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY!)
-
 interface EmailParams {
   assunto: string
   titulo: string
@@ -10,6 +8,12 @@ interface EmailParams {
 }
 
 export async function enviarEmail({ assunto, titulo, corpo, tipo }: EmailParams): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    console.warn('[email] RESEND_API_KEY não configurada — email ignorado')
+    return
+  }
+
   const destinosRaw = process.env.EMAIL_DESTINO ?? ''
   const destinos = destinosRaw.split(',').map((e) => e.trim()).filter(Boolean)
   if (destinos.length === 0) {
@@ -19,9 +23,9 @@ export async function enviarEmail({ assunto, titulo, corpo, tipo }: EmailParams)
 
   const cores: Record<string, string> = {
     alerta:  '#A32D2D',
-    sucesso:  '#3B6D11',
-    info:     '#1f2937',
-    resumo:   '#1f2937',
+    sucesso: '#3B6D11',
+    info:    '#1f2937',
+    resumo:  '#1f2937',
   }
 
   const appUrl = process.env.APP_URL ?? 'https://ranken-financeiro.vercel.app'
@@ -50,10 +54,12 @@ export async function enviarEmail({ assunto, titulo, corpo, tipo }: EmailParams)
     </div>
   `.trim()
 
+  const resend = new Resend(apiKey)
+
   try {
     await resend.emails.send({
-      from: 'RANKEN Financeiro <financeiro@resend.dev>',
-      to: destinos,
+      from: 'RANKEN Financeiro <noreply@ranken.com.br>',
+      to:   destinos,
       subject: assunto,
       html,
     })

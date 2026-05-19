@@ -9,8 +9,6 @@ import { conciliarRepasseStripe } from '@/lib/stripeConciliacao'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
 // ── Tipos internos ────────────────────────────────────────────────────────────
 
 interface LancamentoBruto {
@@ -232,6 +230,7 @@ ${JSON.stringify(
   })),
 )}`
 
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const message = await anthropic.messages.create({
     model: 'claude-opus-4-5',
     max_tokens: 4096,

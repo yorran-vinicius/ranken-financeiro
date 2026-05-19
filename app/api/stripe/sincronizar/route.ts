@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { stripe } from '@/lib/stripe'
+import { getStripe } from '@/lib/stripe'
 import { neon } from '@neondatabase/serverless'
 import { getSession } from '@/lib/auth'
 
@@ -16,6 +16,7 @@ export async function POST(_req: NextRequest) {
     return NextResponse.json({ error: 'Acesso restrito a masters' }, { status: 403 })
   }
 
+  const stripe = getStripe()
   const sql = db()
   let totalAssinaturas = 0
   let totalRepasses    = 0

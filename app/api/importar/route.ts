@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { neon } from '@neondatabase/serverless'
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-})
-
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
@@ -28,6 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'PDF não enviado' }, { status: 400 })
     }
 
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const message = await anthropic.messages.create({
       model: 'claude-opus-4-5',
       max_tokens: 4096,
