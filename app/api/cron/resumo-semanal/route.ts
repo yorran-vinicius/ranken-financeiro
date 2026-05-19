@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 
     try {
       const response = await client.messages.create({
-        model:      'claude-sonnet-4-20250514',
+        model:      'claude-sonnet-4-5-20250929',
         max_tokens: 250,
         messages: [{
           role:    'user',

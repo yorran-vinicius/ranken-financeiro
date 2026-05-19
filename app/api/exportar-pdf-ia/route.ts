@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
     // Timeout de 10s para a IA
     const client = new Anthropic()
     const iaPromise = client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 800,
       messages: [{
         role: 'user',

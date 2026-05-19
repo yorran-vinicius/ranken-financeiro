@@ -85,7 +85,7 @@ Dados de ${mes}:
 Gere apenas a frase de insight, sem explicações adicionais. Seja específico com os números quando relevante. Se o resultado for negativo, seja honesto mas construtivo. Fale como alguém do time, não como sistema.`
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 150,
       messages: [{ role: 'user', content: prompt }],
     })

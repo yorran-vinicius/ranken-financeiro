@@ -97,7 +97,7 @@ export async function GET() {
   try {
     const client = new Anthropic()
     const response = await client.messages.create({
-      model:      'claude-sonnet-4-20250514',
+      model:      'claude-sonnet-4-5-20250929',
       max_tokens: 400,
       messages: [{
         role:    'user',
