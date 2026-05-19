@@ -51,8 +51,8 @@ export default function CardsResumo({
   despesasAnt,
   labelMesAnt,
 }: Props) {
-  // Saldo real inclui aportes (dinheiro efetivamente disponível)
-  const saldo = totalReceitas + totalAportes - totalDespesas;
+  // Saldo = receita operacional − despesas (aportes não entram)
+  const saldo = totalReceitas - totalDespesas;
   const saldoPositivo = saldo >= 0;
   const saldoAnt =
     receitasAnt !== undefined && despesasAnt !== undefined

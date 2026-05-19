@@ -13,7 +13,7 @@ export default function PontoEquilibrio({ lancamentos }: Props) {
     let r = 0;
     let cf = 0;
     for (const l of lancamentos) {
-      if (l.tipo === "receita") {
+      if (l.tipo === "receita" && l.categoria !== "Aporte") {
         r += l.valor;
       } else if (l.custoFixo) {
         cf += l.valor;

@@ -88,15 +88,25 @@ export default function AnalisePage() {
   }, [funcCidade, cidadeSelecionada, lancamentosMes]);
 
   // ── Totais ────────────────────────────────────────────────────────────────
-  const { totalReceitas, totalDespesas, receitasFixas, despesasFixas, receitasAvulsas, despesasAvulsas } =
+  // totalReceitas = receita operacional (sem Aporte); totalAportes separado
+  const { totalReceitas, totalAportes, totalDespesas, receitasFixas, despesasFixas, receitasAvulsas, despesasAvulsas } =
     useMemo(() => {
-      let r = 0, d = 0, rf = 0, df = 0, ra = 0, da = 0;
+      let r = 0, aportes = 0, d = 0, rf = 0, df = 0, ra = 0, da = 0;
       for (const l of lancamentosVisiveis) {
         const fixo = l.tipoLancamento === "recorrente";
-        if (l.tipo === "receita") { r += l.valor; fixo ? rf += l.valor : ra += l.valor; }
-        else { d += l.valor; fixo ? df += l.valor : da += l.valor; }
+        if (l.tipo === "receita") {
+          if (l.categoria === "Aporte") {
+            aportes += l.valor;
+          } else {
+            r += l.valor;
+            fixo ? rf += l.valor : ra += l.valor;
+          }
+        } else {
+          d += l.valor;
+          fixo ? df += l.valor : da += l.valor;
+        }
       }
-      return { totalReceitas: r, totalDespesas: d, receitasFixas: rf, despesasFixas: df, receitasAvulsas: ra, despesasAvulsas: da };
+      return { totalReceitas: r, totalAportes: aportes, totalDespesas: d, receitasFixas: rf, despesasFixas: df, receitasAvulsas: ra, despesasAvulsas: da };
     }, [lancamentosVisiveis]);
 
   // ── Hoje ──────────────────────────────────────────────────────────────────
@@ -197,9 +207,9 @@ export default function AnalisePage() {
       {temBreakdown && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[
-            { label: "Receitas", fixo: receitasFixas, avulso: receitasAvulsas, cor: "text-receita", avulsoLabel: "Avulso" },
-            { label: "Despesas", fixo: despesasFixas, avulso: despesasAvulsas, cor: "text-despesa", avulsoLabel: "Avulso / Parcelado" },
-          ].map(({ label, fixo, avulso, cor, avulsoLabel }) => (
+            { label: "Receitas", fixo: receitasFixas, avulso: receitasAvulsas, cor: "text-receita", avulsoLabel: "Avulso", mostrarAportes: true },
+            { label: "Despesas", fixo: despesasFixas, avulso: despesasAvulsas, cor: "text-despesa", avulsoLabel: "Avulso / Parcelado", mostrarAportes: false },
+          ].map(({ label, fixo, avulso, cor, avulsoLabel, mostrarAportes }) => (
             <div key={label} className="bg-white border border-marca-borda rounded-2xl p-4">
               <p className="text-xs uppercase tracking-wide text-marca-texto-suave font-medium mb-2">{label} — composição</p>
               <div className="space-y-1.5">
@@ -211,6 +221,12 @@ export default function AnalisePage() {
                   <span className="text-marca-texto-suave">{avulsoLabel}</span>
                   <span className={`font-semibold ${cor}`}>{formatarBRL(avulso)}</span>
                 </div>
+                {mostrarAportes && totalAportes > 0 && (
+                  <div className="flex justify-between text-sm border-t border-marca-borda pt-1.5 mt-0.5">
+                    <span className="text-marca-texto-suave">Aportes</span>
+                    <span className="font-semibold text-marca-texto">{formatarBRL(totalAportes)}</span>
+                  </div>
+                )}
               </div>
             </div>
           ))}
