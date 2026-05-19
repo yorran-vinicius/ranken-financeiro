@@ -35,6 +35,16 @@ function serialToISO(serial: number): string {
   return dateToISO(new Date((serial - 25569) * 86400 * 1000))
 }
 
+/**
+ * Converte data no formato brasileiro "DD/MM/YYYY" → "YYYY-MM-DD".
+ * Retorna null se a string não bater com o padrão.
+ */
+function parseDateBR(raw: string): string | null {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw.trim())
+  if (!m) return null
+  return `${m[3]}-${m[2]}-${m[1]}`
+}
+
 // ── Parse do valor Sicoob ─────────────────────────────────────────────────────
 // Formatos: "475,20 C" | "- 300,00 D" | number positivo/negativo (xlsx já parseou)
 
@@ -66,13 +76,15 @@ function parseValorSicoob(raw: unknown): { valor: number; tipo: 'entrada' | 'sai
 // ── Parser XLS/XLSX ───────────────────────────────────────────────────────────
 
 function parseXLS(buffer: Buffer): LancamentoBruto[] {
+  // cellDates: true converte células de data nativas do Excel para Date objects.
+  // Células de texto que já têm "18/05/2026" permanecem como string — tratado abaixo.
   const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true })
   const ws = wb.Sheets[wb.SheetNames[0]]
 
-  // header: 1 → cada linha vira array; mantém índices das colunas
+  // header: 1 → cada linha vira array preservando índices das colunas
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 })
 
-  // Linha 0 = título "EXTRATO CONTA CORRENTE", linha 1 = cabeçalho → pula
+  // Linha 0 = "EXTRATO CONTA CORRENTE" (título), linha 1 = cabeçalho → pula ambas
   const dataRows = rows.slice(2) as unknown[][]
 
   interface GrupoTemp {
@@ -88,26 +100,44 @@ function parseXLS(buffer: Buffer): LancamentoBruto[] {
   for (const row of dataRows) {
     const cell0 = row[0]
 
-    // Linha principal: DATA está preenchida (Date object ou serial numérico)
-    const isMainRow =
-      cell0 instanceof Date ||
-      (typeof cell0 === 'number' && !isNaN(cell0) && cell0 > 10000)
+    // ── Detecta se é linha principal (DATA preenchida) ──────────────────────
+    // O Sicoob exporta a coluna DATA como texto "DD/MM/YYYY".
+    // xlsx pode entregar como: string (texto), Date (célula de data nativa)
+    // ou number (serial Excel quando cellDates não reconhece o formato).
+
+    let dataParsed: string | null = null
+
+    if (typeof cell0 === 'string' && cell0.trim() !== '') {
+      // Caso mais comum: string "18/05/2026"
+      dataParsed = parseDateBR(cell0)
+    } else if (cell0 instanceof Date) {
+      // Célula de data nativa do Excel
+      dataParsed = dateToISO(cell0)
+    } else if (typeof cell0 === 'number' && !isNaN(cell0) && cell0 > 10000) {
+      // Serial numérico do Excel (fallback raro)
+      dataParsed = serialToISO(cell0)
+    }
+
+    const isMainRow = dataParsed !== null
 
     if (isMainRow) {
-      const data =
-        cell0 instanceof Date ? dateToISO(cell0) : serialToISO(cell0 as number)
-
       const historico = String(row[2] ?? '').trim()
-      // Ignora linhas de saldo
+
+      // Ignora linhas de saldo do dia / saldo anterior
       if (!historico || historico.toUpperCase().includes('SALDO')) continue
 
       const valorParsed = parseValorSicoob(row[3])
       if (!valorParsed) continue
 
-      grupoAtual = { data, historico, detalhes: [], valor: valorParsed }
+      grupoAtual = {
+        data: dataParsed!,
+        historico,
+        detalhes: [],
+        valor: valorParsed,
+      }
       grupos.push(grupoAtual)
     } else if (grupoAtual) {
-      // Linha de detalhe: DATA = NaN/vazia → concatena ao grupo anterior
+      // ── Linha de detalhe: DATA vazia → concatena ao lançamento anterior ──
       const detalhe = String(row[2] ?? '').trim()
       if (detalhe && !detalhe.toUpperCase().includes('SALDO')) {
         grupoAtual.detalhes.push(detalhe)
@@ -115,11 +145,14 @@ function parseXLS(buffer: Buffer): LancamentoBruto[] {
     }
   }
 
+  console.log(`[sicoob] XLS parse: ${grupos.length} lançamento(s) encontrado(s)`)
+
   return grupos.map((g) => ({
-    descricao: [g.historico, ...g.detalhes].filter(Boolean).join(' ').trim(),
-    valor: g.valor.valor,
-    tipo: g.valor.tipo,
-    data: g.data,
+    // Detalhes concatenados com " - " para separar visualmente
+    descricao: [g.historico, ...g.detalhes].filter(Boolean).join(' - ').trim(),
+    valor:     g.valor.valor,
+    tipo:      g.valor.tipo,
+    data:      g.data,
   }))
 }
 
