@@ -4,7 +4,11 @@ export const CATEGORIAS_RECEITA = [
   "Loja",
   "Confraternização",
   "Outros",
+  "Aporte",
 ] as const;
+
+/** Categoria especial de aporte — excluída de receita operacional. */
+export const CATEGORIA_APORTE = "Aporte" as const;
 
 export const CATEGORIAS_DESPESA = [
   "Time",

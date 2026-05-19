@@ -149,7 +149,7 @@ function toUsuario(row: Record<string, unknown>): Usuario {
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
-const CATS_RECEITA = ["Mensalidades", "Patrocínios", "Loja", "Confraternização", "Outros"];
+const CATS_RECEITA = ["Mensalidades", "Patrocínios", "Loja", "Confraternização", "Outros", "Aporte"];
 const CATS_DESPESA = ["Time", "Marketing", "Tecnologia", "Operacional", "Confraternização", "Outros"];
 
 // Fix 1 — executa o schema check apenas uma vez por instância do servidor

@@ -165,7 +165,13 @@ async function migrar() {
       ON CONFLICT (tipo, nome) DO NOTHING
     `;
   }
-  console.log(`✅  ${CATS_RECEITA.length + CATS_DESPESA.length} categorias padrão OK`);
+  // Categoria especial: Aporte (ordem 99 para aparecer por último)
+  await sql`
+    INSERT INTO categorias (id, tipo, nome, ativo, ordem)
+    VALUES (${randomUUID()}, 'receita', 'Aporte', TRUE, 99)
+    ON CONFLICT (tipo, nome) DO NOTHING
+  `;
+  console.log(`✅  ${CATS_RECEITA.length + CATS_DESPESA.length} categorias padrão OK (+ Aporte)`);
 
   // ── Configurações padrão ──────────────────────────────────────────────────────
   await sql`INSERT INTO configuracoes (chave, valor) VALUES ('nome_app', 'RANKEN Financeiro') ON CONFLICT (chave) DO NOTHING`;

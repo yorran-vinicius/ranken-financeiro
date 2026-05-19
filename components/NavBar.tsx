@@ -9,6 +9,7 @@ const ITENS = [
   { href: "/analise",     rotulo: "Análise"      },
   { href: "/lancamentos", rotulo: "Lançamentos"  },
   { href: "/importar",    rotulo: "Importar PDF" },
+  { href: "/relatorio",   rotulo: "Relatório"    },
 ];
 
 export default function NavBar() {

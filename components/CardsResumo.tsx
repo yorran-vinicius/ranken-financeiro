@@ -1,7 +1,10 @@
 import { formatarBRL } from "@/lib/format";
 
 interface Props {
+  /** Receita operacional — exclui aportes */
   totalReceitas: number;
+  /** Aportes recebidos no mês (opcional) */
+  totalAportes?: number;
   totalDespesas: number;
   receitasAnt?: number;
   despesasAnt?: number;
@@ -42,12 +45,14 @@ function VariacaoBadge({ atual, anterior, label, higherIsBetter }: BadgeProps) {
 
 export default function CardsResumo({
   totalReceitas,
+  totalAportes = 0,
   totalDespesas,
   receitasAnt,
   despesasAnt,
   labelMesAnt,
 }: Props) {
-  const saldo = totalReceitas - totalDespesas;
+  // Saldo real inclui aportes (dinheiro efetivamente disponível)
+  const saldo = totalReceitas + totalAportes - totalDespesas;
   const saldoPositivo = saldo >= 0;
   const saldoAnt =
     receitasAnt !== undefined && despesasAnt !== undefined
@@ -56,6 +61,7 @@ export default function CardsResumo({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-4">
+      {/* ── Receita Operacional ── */}
       <div className="bg-white border border-marca-borda rounded-2xl p-3">
         <p className="text-xs font-semibold tracking-widest text-gray-500">
           Receitas
@@ -63,6 +69,11 @@ export default function CardsResumo({
         <p className="mt-1 text-xl font-bold text-receita">
           {formatarBRL(totalReceitas)}
         </p>
+        {totalAportes > 0 && (
+          <p className="text-xs text-marca-texto-suave mt-0.5">
+            + {formatarBRL(totalAportes)} de aportes
+          </p>
+        )}
         <div className="mt-1">
           <VariacaoBadge
             atual={totalReceitas}
@@ -73,6 +84,7 @@ export default function CardsResumo({
         </div>
       </div>
 
+      {/* ── Despesas ── */}
       <div className="bg-white border border-marca-borda rounded-2xl p-3">
         <p className="text-xs font-semibold tracking-widest text-gray-500">
           Despesas
@@ -90,6 +102,7 @@ export default function CardsResumo({
         </div>
       </div>
 
+      {/* ── Saldo do mês ── */}
       <div className="bg-white border border-marca-borda rounded-2xl p-3">
         <p className="text-xs font-semibold tracking-widest text-gray-500">
           Saldo do mês

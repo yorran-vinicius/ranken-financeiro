@@ -119,14 +119,21 @@ export default function DashboardPage() {
   }, [lancamentosVisiveis, config.custo_fixo_mensal]);
 
   // ── Totais do mês ─────────────────────────────────────────────────────────
-  const { totalReceitas, totalDespesas } = useMemo(() => {
-    let r = 0, d = 0;
+  const { totalReceitas, totalAportes, totalDespesas } = useMemo(() => {
+    let r = 0, aportes = 0, d = 0;
     for (const l of lancamentosVisiveis) {
-      if (l.tipo === "receita") r += l.valor;
-      else d += l.valor;
+      if (l.tipo === "receita") {
+        if (l.categoria === "Aporte") aportes += l.valor;
+        else r += l.valor;
+      } else {
+        d += l.valor;
+      }
     }
-    return { totalReceitas: r, totalDespesas: d };
+    return { totalReceitas: r, totalAportes: aportes, totalDespesas: d };
   }, [lancamentosVisiveis]);
+
+  // Receita operacional = total sem aportes (já é totalReceitas acima)
+  const totalReceitasComAportes = totalReceitas + totalAportes;
 
   // ── Dados do mês anterior ─────────────────────────────────────────────────
   const mesPrevISO = useMemo(() => mesAnteriorISO(mes), [mes]);
@@ -135,8 +142,11 @@ export default function DashboardPage() {
     return nomeMes(Number(m)).toLowerCase();
   }, [mesPrevISO]);
 
+  // Receitas operacionais do mês anterior (sem aportes) — para comparação apples-to-apples
   const receitasAnt = useMemo(
-    () => lancamentosAnt.filter((l) => l.tipo === "receita").reduce((s, l) => s + l.valor, 0),
+    () => lancamentosAnt
+      .filter((l) => l.tipo === "receita" && l.categoria !== "Aporte")
+      .reduce((s, l) => s + l.valor, 0),
     [lancamentosAnt],
   );
   const despesasAnt = useMemo(
@@ -159,7 +169,8 @@ export default function DashboardPage() {
       .map(([cat, lim]) => ({ categoria: cat, gasto: despPorCat[cat] ?? 0, limite: Number(lim) }));
   }, [funcAlertas, config.alertas_limites, lancamentosVisiveis]);
 
-  const saldoNegativo = funcAlertas && (totalReceitas - totalDespesas) < 0;
+  // Saldo real inclui aportes — alerta de negativo usa caixa total
+  const saldoNegativo = funcAlertas && (totalReceitasComAportes - totalDespesas) < 0;
 
   // ── Alerta parcelas finalizando ───────────────────────────────────────────
   const mesProximo = proxMes(mes);
@@ -218,7 +229,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Indicador de saúde ── */}
+      {/* ── Indicador de saúde — usa receita operacional, sem aportes ── */}
       <InsightsDashboard
         totalReceitas={totalReceitas}
         totalDespesas={totalDespesas}
@@ -237,8 +248,8 @@ export default function DashboardPage() {
           <div>
             <p className="text-sm font-medium text-despesa">Saldo negativo no mês</p>
             <p className="text-xs text-despesa/80 mt-0.5">
-              As despesas ({formatarBRL(totalDespesas)}) superam as receitas ({formatarBRL(totalReceitas)}).
-              Saldo: {formatarBRL(totalReceitas - totalDespesas)}.
+              As despesas ({formatarBRL(totalDespesas)}) superam as receitas ({formatarBRL(totalReceitasComAportes)}).
+              Saldo: {formatarBRL(totalReceitasComAportes - totalDespesas)}.
             </p>
           </div>
         </div>
@@ -281,8 +292,14 @@ export default function DashboardPage() {
       )}
 
       {/* ── Painel de Metas ── */}
+      {/* Meta anual exclui aportes — conta só receita operacional */}
       {funcMetas && (
-        <PainelMetas lancamentos={todosLancamentos} metaAnual={metaAnual} />
+        <PainelMetas
+          lancamentos={todosLancamentos.filter(
+            (l) => !(l.tipo === "receita" && l.categoria === "Aporte")
+          )}
+          metaAnual={metaAnual}
+        />
       )}
 
       {/* ── Cards resumo (com variação %) + Ponto de Equilíbrio ── */}
@@ -291,6 +308,7 @@ export default function DashboardPage() {
           <div className="lg:col-span-3">
             <CardsResumo
               totalReceitas={totalReceitas}
+              totalAportes={totalAportes}
               totalDespesas={totalDespesas}
               receitasAnt={receitasAnt}
               despesasAnt={despesasAnt}
@@ -304,6 +322,7 @@ export default function DashboardPage() {
       ) : (
         <CardsResumo
           totalReceitas={totalReceitas}
+          totalAportes={totalAportes}
           totalDespesas={totalDespesas}
           receitasAnt={receitasAnt}
           despesasAnt={despesasAnt}
