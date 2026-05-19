@@ -4,6 +4,7 @@ import { neon } from '@neondatabase/serverless'
 import * as XLSX from 'xlsx'
 import { getSession } from '@/lib/auth'
 import type { LancamentoSugerido } from '@/app/api/importar/route'
+import { conciliarRepasseStripe } from '@/lib/stripeConciliacao'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -290,6 +291,35 @@ async function marcarDuplicatas(
   }
 }
 
+// ── Conciliação Stripe ────────────────────────────────────────────────────────
+
+async function conciliarStripe(
+  lancamentos: LancamentoSugerido[],
+): Promise<LancamentoSugerido[]> {
+  try {
+    return await Promise.all(
+      lancamentos.map(async (l) => {
+        // Só tenta conciliar entradas com data definida
+        if (l.tipo !== 'entrada' || !l.data) return l
+        // Heurística: descrição menciona Stripe, repasse, pagamento digital
+        const desc = l.descricao.toUpperCase()
+        const pareceStripe = desc.includes('STRIPE') || desc.includes('REPASSE') || desc.includes('MARKETPLACE')
+        if (!pareceStripe) return l
+
+        const resultado = await conciliarRepasseStripe(l.valor, l.data, l.descricao)
+        if (resultado.encontrado && resultado.repasse_id) {
+          const taxa = Number((resultado.repasse as Record<string, unknown>)?.valor_taxa ?? 0)
+          return { ...l, stripe_repasse_id: resultado.repasse_id, stripe_taxa: taxa }
+        }
+        return l
+      }),
+    )
+  } catch (err) {
+    console.error('[sicoob] Erro na conciliação Stripe:', err)
+    return lancamentos
+  }
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -336,10 +366,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const enriquecidos  = await enriquecerComIA(brutos)
-    const comDuplicatas = await marcarDuplicatas(enriquecidos)
+    const enriquecidos    = await enriquecerComIA(brutos)
+    const comDuplicatas   = await marcarDuplicatas(enriquecidos)
+    const comConciliacao  = await conciliarStripe(comDuplicatas)
 
-    return NextResponse.json({ lancamentos: comDuplicatas })
+    return NextResponse.json({ lancamentos: comConciliacao })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[sicoob] ERRO:', msg)

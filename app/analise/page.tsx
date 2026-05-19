@@ -5,6 +5,7 @@ import FiltroMes from "@/components/FiltroMes";
 import FluxoCaixa from "@/components/FluxoCaixa";
 import GraficoPizza from "@/components/GraficoPizza";
 import CustosFixos from "@/components/CustosFixos";
+import Reconciliacao from "@/components/Reconciliacao";
 import type { Lancamento } from "@/lib/db";
 import { exportarPDF } from "@/lib/exportarPDF";
 import { formatarBRL, hojeISO, mesAtualISO, nomeMes, rotuloMesAno } from "@/lib/format";
@@ -80,7 +81,7 @@ function IconePDF() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-type SubAba = "operacional" | "custos" | "investidor";
+type SubAba = "operacional" | "custos" | "investidor" | "reconciliacao";
 
 export default function AnalisePage() {
   const [mes, setMes]                                 = useState(mesAtualISO());
@@ -254,9 +255,10 @@ export default function AnalisePage() {
   function handleExportarPDF() { exportarPDF(lancamentosVisiveis, mes, nomeApp); }
 
   const SUB_ABAS: { id: SubAba; label: string }[] = [
-    { id: "operacional", label: "Operacional" },
-    { id: "custos",      label: "Custos Fixos" },
-    { id: "investidor",  label: "Investidor" },
+    { id: "operacional",   label: "Operacional"   },
+    { id: "custos",        label: "Custos Fixos"  },
+    { id: "investidor",    label: "Investidor"    },
+    { id: "reconciliacao", label: "Stripe"        },
   ];
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -536,6 +538,11 @@ export default function AnalisePage() {
           </section>
         </>
       )}
+
+      {/* ══════════════════════════════
+          SUB-ABA: STRIPE / RECONCILIAÇÃO
+         ══════════════════════════════ */}
+      {aba === "reconciliacao" && <Reconciliacao />}
 
       {carregando && (
         <p className="text-xs text-marca-texto-suave text-center">Atualizando...</p>

@@ -251,6 +251,76 @@ export async function garantirTabelas() {
     sql`CREATE INDEX IF NOT EXISTS idx_lancamentos_criado_por ON lancamentos(criado_por_id)`,
   ]);
 
+  // Tabelas Stripe, auditoria e fechamento de mês
+  await sql`
+    CREATE TABLE IF NOT EXISTS stripe_assinaturas (
+      id                       SERIAL PRIMARY KEY,
+      stripe_subscription_id   TEXT UNIQUE NOT NULL,
+      stripe_customer_id       TEXT NOT NULL,
+      cliente_nome             TEXT,
+      cliente_email            TEXT,
+      cidade                   VARCHAR(100),
+      valor_mensal             DECIMAL(10,2) NOT NULL,
+      status                   VARCHAR(30)   NOT NULL,
+      data_inicio              DATE,
+      data_proxima_cobranca    DATE,
+      data_cancelamento        DATE,
+      criado_em                TIMESTAMP DEFAULT NOW(),
+      atualizado_em            TIMESTAMP DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS stripe_repasses (
+      id                       SERIAL PRIMARY KEY,
+      stripe_invoice_id        TEXT UNIQUE,
+      stripe_charge_id         TEXT,
+      stripe_subscription_id   TEXT,
+      cliente_nome             TEXT,
+      valor_bruto              DECIMAL(10,2) NOT NULL,
+      valor_taxa               DECIMAL(10,2) DEFAULT 0,
+      valor_liquido            DECIMAL(10,2),
+      data_pagamento           DATE,
+      data_repasse_prevista    DATE,
+      data_repasse_confirmada  DATE,
+      status                   VARCHAR(30)   NOT NULL,
+      lancamento_id            TEXT REFERENCES lancamentos(id),
+      tentativas_cobranca      INTEGER DEFAULT 0,
+      criado_em                TIMESTAMP DEFAULT NOW(),
+      atualizado_em            TIMESTAMP DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS auditoria (
+      id            SERIAL PRIMARY KEY,
+      usuario_id    TEXT REFERENCES usuarios(id),
+      usuario_nome  TEXT,
+      acao          VARCHAR(30)  NOT NULL,
+      entidade      VARCHAR(50)  NOT NULL,
+      entidade_id   TEXT,
+      detalhes      JSONB,
+      ip            TEXT,
+      criado_em     TIMESTAMP DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS meses_fechados (
+      id                SERIAL PRIMARY KEY,
+      ano_mes           VARCHAR(7) UNIQUE NOT NULL,
+      fechado_por       TEXT REFERENCES usuarios(id),
+      saldo_calculado   DECIMAL(12,2),
+      saldo_real_banco  DECIMAL(12,2),
+      diferenca         DECIMAL(12,2),
+      observacao        TEXT,
+      fechado_em        TIMESTAMP DEFAULT NOW()
+    )
+  `;
+  await Promise.allSettled([
+    sql`CREATE INDEX IF NOT EXISTS idx_repasses_status        ON stripe_repasses(status)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_repasses_data_prevista ON stripe_repasses(data_repasse_prevista)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_auditoria_criado       ON auditoria(criado_em DESC)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_assinaturas_status     ON stripe_assinaturas(status)`,
+  ]);
+
   // Tabela de padrões aprendidos para categorização automática
   await sql`
     CREATE TABLE IF NOT EXISTS regras_categorizacao (

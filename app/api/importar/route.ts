@@ -16,6 +16,8 @@ export interface LancamentoSugerido {
   categoria_sugerida: string
   data: string | null
   duplicata?: boolean
+  stripe_repasse_id?: number | null
+  stripe_taxa?: number | null
 }
 
 export async function POST(req: NextRequest) {

@@ -6,10 +6,11 @@ import { useAuth } from "@/components/AuthProvider";
 import BuscaGlobal from "@/components/BuscaGlobal";
 
 const ITENS = [
-  { href: "/",            rotulo: "Dashboard"   },
-  { href: "/analise",     rotulo: "Análise"     },
-  { href: "/lancamentos", rotulo: "Lançamentos" },
-  { href: "/importar",    rotulo: "Importar"    },
+  { href: "/",             rotulo: "Dashboard"   },
+  { href: "/analise",      rotulo: "Análise"     },
+  { href: "/lancamentos",  rotulo: "Lançamentos" },
+  { href: "/assinaturas",  rotulo: "Assinaturas" },
+  { href: "/importar",     rotulo: "Importar"    },
 ];
 
 export default function NavBar() {

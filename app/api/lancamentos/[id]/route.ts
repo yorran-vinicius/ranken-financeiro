@@ -6,8 +6,24 @@ import {
   lerCriadorLancamento,
 } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { registrarAuditoria } from "@/lib/auditoria";
+import { neon } from "@neondatabase/serverless";
 
 export const dynamic = "force-dynamic";
+
+// ── Verificação de mês fechado ─────────────────────────────────────────────
+async function mesFechado(data: string): Promise<boolean> {
+  try {
+    const mes = data.slice(0, 7); // YYYY-MM
+    const sql = neon(process.env.DATABASE_URL!);
+    const rows = await sql`
+      SELECT 1 FROM meses_fechados WHERE mes = ${mes} LIMIT 1
+    `;
+    return rows.length > 0;
+  } catch {
+    return false; // Se tabela não existir ainda, não bloqueia
+  }
+}
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const sessao = await getSession();
@@ -42,6 +58,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (typeof b.data !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.data))
     return NextResponse.json({ erro: "Data inválida" }, { status: 400 });
 
+  // Verifica mês fechado
+  if (await mesFechado(b.data as string)) {
+    return NextResponse.json({ erro: "Mês fechado — edições não permitidas" }, { status: 403 });
+  }
+
   const atualizado = await atualizarLancamento(params.id, {
     descricao: (b.descricao as string).trim(),
     valor:     Math.round(valorNum * 100) / 100,
@@ -53,6 +74,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   });
 
   if (!atualizado) return NextResponse.json({ erro: "Não encontrado" }, { status: 404 });
+
+  // Auditoria — fire-and-forget
+  void registrarAuditoria({
+    usuario_id:   sessao.userId ?? "desconhecido",
+    usuario_nome: sessao.nome   ?? "desconhecido",
+    acao:         "editar",
+    entidade:     "lancamento",
+    entidade_id:  params.id,
+    detalhes:     { valor: valorNum, tipo: b.tipo, descricao: b.descricao, data: b.data },
+  });
+
   return NextResponse.json(atualizado);
 }
 
@@ -67,5 +99,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
   const ok = await removerLancamento(params.id);
   if (!ok) return NextResponse.json({ erro: "Lançamento não encontrado" }, { status: 404 });
+
+  // Auditoria — fire-and-forget
+  void registrarAuditoria({
+    usuario_id:   sessao.userId ?? "desconhecido",
+    usuario_nome: sessao.nome   ?? "desconhecido",
+    acao:         "deletar",
+    entidade:     "lancamento",
+    entidade_id:  params.id,
+  });
+
   return NextResponse.json({ ok: true });
 }
