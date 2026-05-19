@@ -77,8 +77,7 @@ export async function POST(req: NextRequest) {
           const tipoDb = l.tipo === 'entrada' ? 'receita' : 'despesa'
           const rows = await sql`
             SELECT id FROM lancamentos
-            WHERE descricao = ${l.descricao}
-              AND valor     = ${l.valor}
+            WHERE valor     = ${l.valor}
               AND data      = ${l.data}
               AND tipo      = ${tipoDb}
               AND cancelado = FALSE
