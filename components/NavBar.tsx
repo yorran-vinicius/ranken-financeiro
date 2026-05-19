@@ -6,11 +6,10 @@ import { useAuth } from "@/components/AuthProvider";
 import BuscaGlobal from "@/components/BuscaGlobal";
 
 const ITENS = [
-  { href: "/",            rotulo: "Dashboard"    },
-  { href: "/analise",     rotulo: "Análise"      },
-  { href: "/lancamentos", rotulo: "Lançamentos"  },
-  { href: "/importar",    rotulo: "Importar PDF" },
-  { href: "/relatorio",   rotulo: "Relatório"    },
+  { href: "/",            rotulo: "Dashboard"   },
+  { href: "/analise",     rotulo: "Análise"     },
+  { href: "/lancamentos", rotulo: "Lançamentos" },
+  { href: "/importar",    rotulo: "Importar"    },
 ];
 
 export default function NavBar() {
@@ -39,7 +38,7 @@ export default function NavBar() {
 
         <nav className="flex items-center gap-1">
           {ITENS.map((item) => {
-            const ativo = pathname === item.href;
+            const ativo = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}

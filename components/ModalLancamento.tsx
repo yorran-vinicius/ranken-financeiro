@@ -46,6 +46,11 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
   const [enviando, setEnviando]       = useState(false);
   const [erro, setErro]               = useState<string | null>(null);
 
+  // ── Anti-duplicata + padrão aprendido ─────────────────────────────────────
+  const [alertaDuplicata, setAlertaDuplicata] = useState<string | null>(null);
+  const [sugestaoCategoria, setSugestaoCategoria] = useState<string | null>(null);
+  const [verificando, setVerificando]         = useState(false);
+
   useEffect(() => {
     Promise.all([
       fetch("/api/configuracoes/categorias").then((r) => r.json()),
@@ -76,6 +81,48 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
     setCategoria(primeira?.nome ?? "");
     // Custo fixo só faz sentido para despesas
     if (t !== "despesa") setCustoFixo(false);
+    // Limpar alertas ao trocar tipo
+    setAlertaDuplicata(null);
+    setSugestaoCategoria(null);
+  }
+
+  /** Verifica duplicata e busca padrão ao sair do campo descrição */
+  async function verificarDescricao() {
+    const valorNum = Number(valor.replace(/\./g, "").replace(",", "."));
+    if (!descricao.trim() || !valorNum || !data) return;
+
+    setVerificando(true);
+    setAlertaDuplicata(null);
+    setSugestaoCategoria(null);
+
+    try {
+      const [resDup, resPad] = await Promise.all([
+        fetch("/api/verificar-duplicata", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ descricao: descricao.trim(), valor: valorNum, tipo, data }),
+        }).then((r) => r.json()).catch(() => ({ isDuplicata: false })),
+
+        fetch("/api/buscar-padrao", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ descricao: descricao.trim(), tipo }),
+        }).then((r) => r.json()).catch(() => ({ encontrado: false })),
+      ]);
+
+      if (resDup.isDuplicata) {
+        setAlertaDuplicata(resDup.mensagem ?? "Possível duplicata encontrada neste mês.");
+      }
+
+      if (resPad.encontrado && resPad.categoria_nome) {
+        setSugestaoCategoria(`✓ Categoria sugerida automaticamente: "${resPad.categoria_nome}" (baseado em lançamentos anteriores)`);
+        // Auto-preenche a categoria se o campo ainda está no padrão
+        const catExiste = todasCats.find((c) => c.nome === resPad.categoria_nome && c.tipo === tipo && c.ativo);
+        if (catExiste) setCategoria(catExiste.nome);
+      }
+    } finally {
+      setVerificando(false);
+    }
   }
 
   async function enviar(e: React.FormEvent) {
@@ -128,6 +175,25 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
         const j = await resp.json().catch(() => ({}));
         throw new Error((j as Record<string, string>).erro ?? "Falha ao salvar");
       }
+
+      // Aprende padrão após salvar lançamento recorrente
+      if (!isEditar && tipoLancamento === "recorrente" && categoria) {
+        const catObj = todasCats.find((c) => c.nome === categoria && c.tipo === tipo);
+        if (catObj) {
+          fetch("/api/confirmar-padrao", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              descricao:       descricao.trim(),
+              categoria_id:    catObj.id,
+              tipo,
+              valor:           Number(valor.replace(/\./g, "").replace(",", ".")),
+              tipo_lancamento: "recorrente",
+            }),
+          }).catch(() => {}); // fire-and-forget
+        }
+      }
+
       onSalvo();
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Erro inesperado");
@@ -223,9 +289,29 @@ export default function ModalLancamento({ lancamento, editandoId, onFechar, onSa
 
         {/* Descrição */}
         <label className="block">
-          <span className={lbl}>Descrição</span>
-          <input type="text" value={descricao} onChange={(e) => setDescricao(e.target.value)}
-            placeholder="Ex: Mensalidade de Maio" className={inp} required />
+          <span className={lbl}>
+            Descrição
+            {verificando && (
+              <span className="ml-2 text-[10px] text-marca-texto-suave font-normal animate-pulse">verificando…</span>
+            )}
+          </span>
+          <input
+            type="text"
+            value={descricao}
+            onChange={(e) => { setDescricao(e.target.value); setAlertaDuplicata(null); setSugestaoCategoria(null); }}
+            onBlur={verificarDescricao}
+            placeholder="Ex: Mensalidade de Maio"
+            className={inp}
+            required
+          />
+          {alertaDuplicata && (
+            <p className="mt-1.5 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+              ⚠️ {alertaDuplicata}
+            </p>
+          )}
+          {sugestaoCategoria && !alertaDuplicata && (
+            <p className="mt-1 text-xs text-blue-600">{sugestaoCategoria}</p>
+          )}
         </label>
 
         {/* Campos Avulso: Valor + Data */}

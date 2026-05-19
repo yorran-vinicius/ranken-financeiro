@@ -108,14 +108,14 @@ export default function DashboardPage() {
 
   const lancamentosVisiveis = lancamentosMes;
 
-  // Custo fixo real: soma lançamentos recorrentes marcados como custo fixo;
-  // se nenhum cadastrado, usa o valor legacy de configuracoes (retrocompat.)
+  // Custo fixo real: soma lançamentos de despesa com tipo_lancamento='recorrente' no mês
+  // Fallback para configuração estática (retrocompat.) quando não há recorrentes no mês
   const custoFixo = useMemo(() => {
-    const doCadastro = lancamentosVisiveis
-      .filter((l) => l.custoFixo && l.tipo === "despesa")
+    const recorrentes = lancamentosVisiveis
+      .filter((l) => l.tipoLancamento === "recorrente" && l.tipo === "despesa")
       .reduce((s, l) => s + l.valor, 0);
-    return doCadastro > 0
-      ? doCadastro
+    return recorrentes > 0
+      ? recorrentes
       : parseFloat(config.custo_fixo_mensal ?? "0") || 0;
   }, [lancamentosVisiveis, config.custo_fixo_mensal]);
 
@@ -184,6 +184,37 @@ export default function DashboardPage() {
 
   // ── PDF ───────────────────────────────────────────────────────────────────
   function handleExportarPDF() { exportarPDF(lancamentosVisiveis, mes, nomeApp); }
+
+  // ── Insight da IA ─────────────────────────────────────────────────────────
+  const [insightIA, setInsightIA] = useState<string>("");
+
+  useEffect(() => {
+    const cacheKey = `insight-${mes}`;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const { texto, timestamp } = JSON.parse(cached);
+        const quatroHoras = 4 * 60 * 60 * 1000;
+        if (Date.now() - timestamp < quatroHoras) {
+          setInsightIA(texto);
+          return;
+        }
+      }
+    } catch { /* sem cache */ }
+
+    fetch(`/api/insight-dashboard?mes=${mes}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.insight) {
+          setInsightIA(data.insight);
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify({ texto: data.insight, timestamp: Date.now() }));
+          } catch { /* ignorar */ }
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mes]);
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -302,6 +333,14 @@ export default function DashboardPage() {
               ))}
             </ul>
           </div>
+        </div>
+      )}
+
+      {/* ── Insight da IA ── */}
+      {insightIA && (
+        <div className="bg-gray-900 text-white rounded-xl px-4 py-3 flex items-start gap-3">
+          <span className="text-lg mt-0.5 shrink-0">💡</span>
+          <p className="text-sm leading-relaxed">{insightIA}</p>
         </div>
       )}
 

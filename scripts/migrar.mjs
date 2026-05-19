@@ -112,6 +112,28 @@ async function migrar() {
   }
   console.log("✅  Tabela 'lancamentos' OK (+ índices)");
 
+  // ── Tabela: regras_categorizacao ──────────────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS regras_categorizacao (
+      id                SERIAL PRIMARY KEY,
+      descricao_padrao  TEXT           NOT NULL,
+      descricao_original TEXT          NOT NULL,
+      categoria_id      TEXT           REFERENCES categorias(id),
+      tipo              VARCHAR(10)    NOT NULL,
+      cidade            VARCHAR(100),
+      valor_referencia  DECIMAL(10,2),
+      tipo_lancamento   VARCHAR(20)    DEFAULT 'recorrente',
+      vezes_confirmado  INTEGER        DEFAULT 1,
+      ativo             BOOLEAN        DEFAULT true,
+      criado_em         TIMESTAMP      DEFAULT NOW(),
+      atualizado_em     TIMESTAMP      DEFAULT NOW()
+    )
+  `;
+  try {
+    await sql.unsafe("CREATE INDEX IF NOT EXISTS idx_regras_descricao ON regras_categorizacao(descricao_padrao)");
+  } catch { /* já existe */ }
+  console.log("✅  Tabela 'regras_categorizacao' OK");
+
   // ── Tabela: categorias ────────────────────────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS categorias (

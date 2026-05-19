@@ -251,6 +251,27 @@ export async function garantirTabelas() {
     sql`CREATE INDEX IF NOT EXISTS idx_lancamentos_criado_por ON lancamentos(criado_por_id)`,
   ]);
 
+  // Tabela de padrões aprendidos para categorização automática
+  await sql`
+    CREATE TABLE IF NOT EXISTS regras_categorizacao (
+      id                SERIAL PRIMARY KEY,
+      descricao_padrao  TEXT           NOT NULL,
+      descricao_original TEXT          NOT NULL,
+      categoria_id      TEXT           REFERENCES categorias(id),
+      tipo              VARCHAR(10)    NOT NULL,
+      cidade            VARCHAR(100),
+      valor_referencia  DECIMAL(10,2),
+      tipo_lancamento   VARCHAR(20)    DEFAULT 'recorrente',
+      vezes_confirmado  INTEGER        DEFAULT 1,
+      ativo             BOOLEAN        DEFAULT true,
+      criado_em         TIMESTAMP      DEFAULT NOW(),
+      atualizado_em     TIMESTAMP      DEFAULT NOW()
+    )
+  `;
+  await Promise.allSettled([
+    sql`CREATE INDEX IF NOT EXISTS idx_regras_descricao ON regras_categorizacao(descricao_padrao)`,
+  ]);
+
   // Seed: usuários iniciais
   const existingUsers = await sql`SELECT login FROM usuarios WHERE login IN ('yorran', 'thales', 'laura')`;
   if (existingUsers.length < 3) {
